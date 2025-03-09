@@ -38,6 +38,8 @@ from .admin_service import AdminService
 
 class LiveStockManager(BaseLockHandler):
     def __init__(self, bot):
+        # Tambahkan initialized sebagai class variable
+        self.initialized = False
         if not self.initialized:
             super().__init__()
             self.bot = bot
