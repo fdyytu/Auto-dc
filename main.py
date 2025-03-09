@@ -245,14 +245,13 @@ class StoreBot(commands.Bot):
             await self.close()
     
     async def on_ready(self):
-        """Called when bot is ready"""
         try:
             logger.info(f"Logged in as {self.user.name} ({self.user.id})")
             logger.info(f"Discord.py Version: {discord.__version__}")
             
-            # Validate channels after bot is fully ready
+            # Validasi channels
             logger.info("Validating channels...")
-            await asyncio.sleep(2)  # Wait a bit before validating channels
+            await asyncio.sleep(2)
             
             required_channels = [
                 ('id_live_stock', 'Live Stock Channel'),
@@ -276,8 +275,8 @@ class StoreBot(commands.Bot):
             )
             await self.change_presence(activity=activity)
             
-            # Clear expired cache
-            await self.cache_manager.clear_expired()
+            # Ubah clear_expired menjadi cleanup_expired
+            await self.cache_manager.cleanup_expired()
             
             logger.info("Bot is fully ready!")
             
@@ -296,20 +295,21 @@ class StoreBot(commands.Bot):
         try:
             # Cleanup tasks
             if hasattr(self, 'cache_manager'):
-                await self.cache_manager.clear_all()
+                await self.cache_manager.cleanup_expired()
             
-            # Cancel all tasks
+            # Cancel all tasks dengan limit
             tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
-            [task.cancel() for task in tasks]
+            for task in tasks[:100]:  # Batasi hanya 100 task
+                task.cancel()
             
-            await asyncio.gather(*tasks, return_exceptions=True)
+            await asyncio.gather(*tasks[:100], return_exceptions=True)
             await super().close()
             
         except Exception as e:
             logger.error(f"Error during shutdown: {e}", exc_info=True)
         finally:
             logger.info("Bot shutdown complete")
-
+            
 async def run_bot():
     """Run the bot"""
     bot = StoreBot()
