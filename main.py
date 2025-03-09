@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
 Discord Bot for Store DC
-Author: fdyyuk
+Author: fdyytu
 Created at: 2025-03-07 18:30:16 UTC
-Last Modified: 2025-03-09 14:12:47 UTC
+Last Modified: 2025-03-09 21:51:00 UTC
 """
 
 import sys
@@ -51,6 +51,14 @@ from database import setup_database, get_connection
 from ext.cache_manager import CacheManager
 from ext.base_handler import BaseLockHandler, BaseResponseHandler
 from utils.command_handler import AdvancedCommandHandler
+
+# Channel configuration
+CHANNEL_CONFIG = {
+    'id_live_stock': 'Live Stock Channel',
+    'id_log_purch': 'Purchase Log Channel',
+    'id_donation_log': 'Donation Log Channel',
+    'id_history_buy': 'Purchase History Channel'
+}
 
 # Initialize basic logging first
 logging.basicConfig(
@@ -116,15 +124,9 @@ logging.basicConfig(
 
 def load_config():
     """Load and validate configuration"""
-    required_keys = [
-        'token', 
-        'guild_id', 
-        'admin_id', 
-        'id_live_stock',
-        'id_log_purch',
-        'id_donation_log', 
-        'id_history_buy'
-    ]
+    # Gunakan keys dari CHANNEL_CONFIG + tambahan ID yang diperlukan
+    id_keys = list(CHANNEL_CONFIG.keys()) + ['guild_id', 'admin_id']
+    required_keys = ['token'] + id_keys
     
     try:
         with open(PATHS.CONFIG, 'r') as f:
@@ -136,16 +138,13 @@ def load_config():
             raise KeyError(f"Missing required config keys: {', '.join(missing_keys)}")
         
         # Validate value types
-        int_keys = ['guild_id', 'admin_id', 'id_live_stock', 'id_log_purch', 
-                   'id_donation_log', 'id_history_buy']
-        
-        for key in int_keys:
+        for key in id_keys:
             try:
                 config[key] = int(config[key])
             except (ValueError, TypeError):
                 raise ValueError(f"Invalid value for {key}. Expected integer.")
-                
-        # Set default values if not present
+        
+        # Set default values
         defaults = {
             'cooldown_time': CommandCooldown.DEFAULT,
             'max_items': Stock.MAX_ITEMS,
@@ -157,6 +156,7 @@ def load_config():
                 config[key] = value
         
         return config
+        
     except FileNotFoundError:
         logger.critical(f"Config file not found: {PATHS.CONFIG}")
         logger.info("Please create a config.json file with required settings")
@@ -249,18 +249,11 @@ class StoreBot(commands.Bot):
             logger.info(f"Logged in as {self.user.name} ({self.user.id})")
             logger.info(f"Discord.py Version: {discord.__version__}")
             
-            # Validasi channels
+            # Validasi channels menggunakan CHANNEL_CONFIG
             logger.info("Validating channels...")
             await asyncio.sleep(2)
             
-            required_channels = [
-                ('id_live_stock', 'Live Stock Channel'),
-                ('id_log_purch', 'Purchase Log Channel'),
-                ('id_donation_log', 'Donation Log Channel'),
-                ('id_history_buy', 'Purchase History Channel')
-            ]
-            
-            for channel_id, channel_name in required_channels:
+            for channel_id, channel_name in CHANNEL_CONFIG.items():
                 channel = self.get_channel(self.config[channel_id])
                 if not channel:
                     logger.error(f"{channel_name} dengan ID {self.config[channel_id]} tidak ditemukan")
@@ -275,7 +268,7 @@ class StoreBot(commands.Bot):
             )
             await self.change_presence(activity=activity)
             
-            # Ubah clear_expired menjadi cleanup_expired
+            # Cleanup expired cache
             await self.cache_manager.cleanup_expired()
             
             logger.info("Bot is fully ready!")
