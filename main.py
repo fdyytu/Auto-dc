@@ -206,15 +206,34 @@ class StoreBot(commands.Bot):
                     await self.close()
                     return
 
-            # Wait for gateway connection before loading stock cog
+            # Modified gateway connection check
             logger.info("Waiting for gateway connection...")
             try:
-                await asyncio.sleep(5)  # Give time for initial connection
-                if not self.is_ready():
-                    await asyncio.wait_for(self.wait_until_ready(), timeout=30)
-                logger.info("Gateway connection established")
-            except asyncio.TimeoutError:
-                logger.critical("Failed to connect to Discord gateway")
+                # Shorter initial wait
+                await asyncio.sleep(2)
+                
+                # Check connection with shorter timeout
+                for attempt in range(3):
+                    if self.is_ready():
+                        logger.info("Gateway connection already established")
+                        break
+                        
+                    try:
+                        await asyncio.wait_for(self.wait_until_ready(), timeout=10)
+                        logger.info("Gateway connection established")
+                        break
+                    except asyncio.TimeoutError:
+                        if attempt < 2:  # Don't log on last attempt
+                            logger.warning(f"Gateway connection attempt {attempt + 1} timed out, retrying...")
+                            await asyncio.sleep(2)
+                        continue
+                else:
+                    logger.critical("Failed to establish gateway connection after 3 attempts")
+                    await self.close()
+                    return
+                    
+            except Exception as e:
+                logger.critical(f"Error during gateway connection: {e}")
                 await self.close()
                 return
 
@@ -302,7 +321,7 @@ class StoreBot(commands.Bot):
         except Exception as e:
             logger.critical(f"Failed to setup bot: {e}", exc_info=True)
             await self.close()
-    
+
     async def on_ready(self):
         try:
             logger.info(f"Logged in as {self.user.name} ({self.user.id})")
