@@ -1066,56 +1066,125 @@ class LiveButtonsCog(commands.Cog):
         """Initialize all dependencies"""
         try:
             async with self._initialization_lock:
+                self.logger.info("Starting dependency initialization...")
+                
                 if self._ready.is_set():
+                    self.logger.info("Dependencies already initialized")
                     return True
-
+    
+                self.logger.info("Waiting for bot to be ready...")
+                await self.bot.wait_until_ready()
+                self.logger.info("Bot is ready")
+    
                 # Wait for stock manager
+                self.logger.info("Attempting to get StockManager...")
                 if not await self.wait_for_stock_manager(timeout=30):
                     self.logger.error("Failed to get StockManager within timeout")
                     return False
-
+    
                 # Set stock manager to button manager
-                await self.button_manager.set_stock_manager(self.stock_manager)
+                self.logger.info("Setting stock manager to button manager...")
+                try:
+                    await self.button_manager.set_stock_manager(self.stock_manager)
+                    self.logger.info("Stock manager set successfully")
+                except Exception as e:
+                    self.logger.error(f"Error setting stock manager: {e}")
+                    return False
                 
                 # Mark as ready
+                self.logger.info("Setting ready state...")
                 self._ready.set()
                 self.logger.info("Dependencies initialized successfully")
                 return True
-
+    
         except Exception as e:
-            self.logger.error(f"Error initializing dependencies: {e}")
+            self.logger.error(f"Error initializing dependencies: {e}", exc_info=True)
             return False
-
+    
     async def cog_load(self):
         """Setup when cog is loaded"""
         try:
             self.logger.info("LiveButtonsCog loading...")
+            self.logger.info("Waiting for bot to be ready...")
             await self.bot.wait_until_ready()
-
-            # Initialize dependencies dengan timeout
-            async with asyncio.timeout(30):  # 30 detik timeout
-                if not await self.initialize_dependencies():
-                    raise RuntimeError("Failed to initialize dependencies")
-
-            # Start background task SETELAH dependencies siap
-            self.check_display.start()
-            self.logger.info("LiveButtonsCog loaded and started successfully")
-
-        except asyncio.TimeoutError:
-            self.logger.error("Initialization timed out")
-            raise
+            self.logger.info("Bot is ready, proceeding with initialization...")
+    
+            # Initialize dependencies dengan timeout dan detailed logging
+            try:
+                async with asyncio.timeout(30):  # 30 detik timeout
+                    self.logger.info("Starting dependency initialization...")
+                    success = await self.initialize_dependencies()
+                    if not success:
+                        self.logger.error("Dependency initialization failed")
+                        raise RuntimeError("Failed to initialize dependencies")
+                    self.logger.info("Dependency initialization successful")
+    
+                # Start background task
+                self.logger.info("Starting background tasks...")
+                self.check_display.start()
+                self.logger.info("Background tasks started")
+                
+                self.logger.info("LiveButtonsCog loaded completely")
+    
+            except asyncio.TimeoutError:
+                self.logger.error("Initialization timed out after 30 seconds")
+                raise RuntimeError("Initialization timed out")
+    
         except Exception as e:
-            self.logger.error(f"Error in cog_load: {e}")
+            self.logger.error(f"Error in cog_load: {e}", exc_info=True)
             raise
-
-    def cog_unload(self):
-        """Cleanup when cog is unloaded"""
+    
+    async def wait_for_stock_manager(self, timeout=15) -> bool:
+        """Wait for stock manager to be available"""
         try:
-            self.check_display.cancel()
-            asyncio.create_task(self.button_manager.cleanup())
-            self.logger.info("LiveButtonsCog unloaded")
+            start_time = datetime.utcnow()
+            retries = 0
+            max_retries = 5
+            
+            self.logger.info(f"Starting StockManager wait with {max_retries} max retries and {timeout}s timeout")
+            
+            while (datetime.utcnow() - start_time).total_seconds() < timeout:
+                stock_cog = self.bot.get_cog('LiveStockCog')
+                retries += 1
+                
+                self.logger.info(f"Attempt {retries}/{max_retries} to get StockManager")
+                
+                if stock_cog:
+                    self.logger.info("LiveStockCog found")
+                    if hasattr(stock_cog, 'stock_manager'):
+                        self.logger.info("stock_manager attribute found")
+                        self.stock_manager = stock_cog.stock_manager
+                        if self.stock_manager:
+                            self.logger.info("StockManager instance found")
+                            if hasattr(self.stock_manager, 'initialized'):
+                                self.logger.info("Checking if StockManager is initialized")
+                                if self.stock_manager.initialized:
+                                    self.logger.info("StockManager is fully initialized")
+                                    return True
+                                else:
+                                    self.logger.warning("StockManager exists but not initialized")
+                            else:
+                                self.logger.warning("StockManager missing 'initialized' attribute")
+                        else:
+                            self.logger.warning("stock_manager attribute is None")
+                    else:
+                        self.logger.warning("LiveStockCog missing stock_manager attribute")
+                else:
+                    self.logger.warning("LiveStockCog not found")
+                
+                if retries >= max_retries:
+                    self.logger.error("Max retries reached waiting for StockManager")
+                    return False
+                    
+                self.logger.info(f"Waiting 3 seconds before next attempt...")
+                await asyncio.sleep(3)
+                
+            self.logger.error(f"StockManager wait timeout after {timeout} seconds")
+            return False
+            
         except Exception as e:
-            self.logger.error(f"Error in cog_unload: {e}")
+            self.logger.error(f"Error waiting for stock manager: {e}", exc_info=True)
+            return False
 
     @tasks.loop(minutes=5.0)
     async def check_display(self):
