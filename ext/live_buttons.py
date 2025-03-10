@@ -1029,24 +1029,43 @@ class LiveButtonsCog(commands.Cog):
         self._initialization_lock = asyncio.Lock()
         self.logger.info("LiveButtonsCog initialized")
 
-    async def wait_for_stock_manager(self, timeout=30) -> bool:
-        """Wait for stock manager to be available"""
-        try:
-            start_time = datetime.utcnow()
-            while (datetime.utcnow() - start_time).total_seconds() < timeout:
-                stock_cog = self.bot.get_cog('LiveStockCog')
-                if stock_cog and hasattr(stock_cog, 'stock_manager'):
-                    self.stock_manager = stock_cog.stock_manager
-                    if self.stock_manager:
-                        self.logger.info(f"StockManager found and ready at {datetime.utcnow()}")
+async def wait_for_stock_manager(self, timeout=15) -> bool:
+    """Wait for stock manager to be available"""
+    try:
+        start_time = datetime.utcnow()
+        retries = 0
+        max_retries = 5
+        
+        while (datetime.utcnow() - start_time).total_seconds() < timeout:
+            stock_cog = self.bot.get_cog('LiveStockCog')
+            retries += 1
+            
+            self.logger.info(f"Attempt {retries}/{max_retries} to get StockManager")
+            
+            if stock_cog and hasattr(stock_cog, 'stock_manager'):
+                self.stock_manager = stock_cog.stock_manager
+                if self.stock_manager:
+                    self.logger.info(f"StockManager found after {retries} attempts")
+                    # Tambahan verifikasi
+                    if hasattr(self.stock_manager, 'initialized') and self.stock_manager.initialized:
+                        self.logger.info("StockManager is fully initialized")
                         return True
-                self.logger.debug("Waiting for StockManager...")
-                await asyncio.sleep(1)
-            self.logger.error("StockManager wait timeout")
-            return False
-        except Exception as e:
-            self.logger.error(f"Error waiting for stock manager: {e}")
-            return False
+                    else:
+                        self.logger.warning("StockManager found but not fully initialized")
+            
+            if retries >= max_retries:
+                self.logger.error("Max retries reached waiting for StockManager")
+                return False
+                
+            self.logger.info(f"Waiting 3 seconds before next attempt...")
+            await asyncio.sleep(3)
+            
+        self.logger.error(f"StockManager wait timeout after {timeout} seconds")
+        return False
+        
+    except Exception as e:
+        self.logger.error(f"Error waiting for stock manager: {e}", exc_info=True)
+        return False
 
     async def initialize_dependencies(self) -> bool:
         """Initialize all dependencies"""
@@ -1150,32 +1169,50 @@ async def setup(bot):
     """Setup LiveButtonsCog dengan proper error handling"""
     if not hasattr(bot, COG_LOADED['LIVE_BUTTONS']):
         try:
-            # Verify all required dependencies
-            required_dependencies = [
-                COG_LOADED['PRODUCT'],
-                COG_LOADED['BALANCE'],
-                COG_LOADED['TRANSACTION'],
-                COG_LOADED['ADMIN'],
-                COG_LOADED['LIVE_STOCK']
-            ]
+            logging.info("Starting LiveButtonsCog setup...")
             
-            for dependency in required_dependencies:
-                if not hasattr(bot, dependency):
-                    raise RuntimeError(f"Missing required dependency: {dependency}")
-
-            # Ensure LiveStockCog is loaded
+            # Verify LiveStockCog is loaded
             stock_cog = bot.get_cog('LiveStockCog')
             if not stock_cog:
-                logging.info("LiveStockCog not found, loading it first...")
+                logging.info("LiveStockCog not found, attempting to load...")
                 try:
                     await bot.load_extension('ext.live_stock')
-                    await asyncio.sleep(2)  # Give time for initialization
+                    await asyncio.sleep(3)  # Wait for LiveStockCog to initialize
                     stock_cog = bot.get_cog('LiveStockCog')
                     if not stock_cog:
                         raise RuntimeError("Failed to load LiveStockCog")
+                    logging.info("LiveStockCog loaded successfully")
                 except Exception as e:
                     logging.error(f"Failed to load LiveStockCog: {e}")
                     raise
+
+            logging.info("Creating LiveButtonsCog instance...")
+            cog = LiveButtonsCog(bot)
+            
+            logging.info("Adding cog to bot...")
+            await bot.add_cog(cog)
+            
+            logging.info("Waiting for cog initialization...")
+            try:
+                async with asyncio.timeout(60):  # 60 second timeout
+                    await cog._ready.wait()
+                logging.info("Cog initialization complete")
+            except asyncio.TimeoutError:
+                logging.error("Cog initialization timed out")
+                await bot.remove_cog('LiveButtonsCog')
+                raise RuntimeError("LiveButtonsCog initialization timed out")
+            
+            # Set loaded flag
+            setattr(bot, COG_LOADED['LIVE_BUTTONS'], True)
+            logging.info("LiveButtons cog setup completed successfully")
+            
+        except Exception as e:
+            logging.error(f"Failed to load LiveButtonsCog: {e}", exc_info=True)
+            if hasattr(bot, COG_LOADED['LIVE_BUTTONS']):
+                delattr(bot, COG_LOADED['LIVE_BUTTONS'])
+            if bot.get_cog('LiveButtonsCog'):
+                await bot.remove_cog('LiveButtonsCog')
+            raise
 
             # Create and add cog
             cog = LiveButtonsCog(bot)
