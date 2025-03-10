@@ -74,13 +74,40 @@ def validate_token(token: str) -> bool:
     if not token:
         return False
         
-    # Token biasanya terdiri dari 59-72 karakter
-    if len(token) < 59 or len(token) > 72:
-        return False
+    # Bersihkan token dari whitespace dan karakter newline
+    token = token.strip().replace('\n', '').replace('\r', '')
     
-    # Token format: 24 chars + "." + 6 chars + "." + remaining chars
-    token_pattern = r"^[A-Za-z0-9_-]{24}\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{27,38}$"
-    return bool(re.match(token_pattern, token))
+    # Debug info
+    parts = token.split('.')
+    logger.info(f"Token parts: {len(parts)}")
+    if len(parts) == 3:
+        logger.info(f"Part lengths: {len(parts[0])}, {len(parts[1])}, {len(parts[2])}")
+    
+    # Token minimal harus memiliki 3 bagian yang dipisahkan oleh titik
+    if len(parts) != 3:
+        logger.error("Token harus memiliki 3 bagian yang dipisahkan oleh titik")
+        return False
+        
+    # Validasi panjang setiap bagian
+    if not (20 <= len(parts[0]) <= 30):  # Lebih fleksibel untuk bagian pertama
+        logger.error("Bagian pertama token tidak valid (harus 20-30 karakter)")
+        return False
+        
+    if not (4 <= len(parts[1]) <= 8):  # Lebih fleksibel untuk bagian kedua
+        logger.error("Bagian kedua token tidak valid (harus 4-8 karakter)")
+        return False
+        
+    if not (24 <= len(parts[2]) <= 40):  # Lebih fleksibel untuk bagian ketiga
+        logger.error("Bagian ketiga token tidak valid (harus 24-40 karakter)")
+        return False
+        
+    # Validasi karakter yang diizinkan
+    allowed_chars = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-")
+    if not all(c in allowed_chars for c in token.replace('.', '')):
+        logger.error("Token mengandung karakter yang tidak valid")
+        return False
+        
+    return True
 
 def setup_project_structure():
     """Create necessary directories and files"""
