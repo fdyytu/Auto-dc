@@ -1,8 +1,8 @@
 """
 Live Buttons Manager with Shop Integration
-Author: fdyyuk
+Author: fdyytu
 Created at: 2025-03-07 22:35:08 UTC
-Last Modified: 2025-03-08 16:13:14 UTC
+Last Modified: 2025-03-10 09:29:54 UTC
 
 Dependencies:
 - ext.product_manager: For product operations
@@ -20,6 +20,7 @@ import asyncio
 from datetime import datetime
 from typing import List, Dict, Optional, Union
 from discord.ui import Select, Button, View, Modal, TextInput
+
 from .constants import (
     COLORS,
     MESSAGES,
@@ -29,9 +30,10 @@ from .constants import (
     Status,
     CURRENCY_RATES,
     UPDATE_INTERVAL,
-    COG_LOADED,  # Tambahkan import ini
+    COG_LOADED,
+    TransactionType,
+    Balance
 )
-
 
 from .base_handler import BaseLockHandler
 from .cache_manager import CacheManager
@@ -40,6 +42,7 @@ from .balance_manager import BalanceManagerService
 from .trx import TransactionManager
 from .admin_service import AdminService
 
+# Base Exception Classes
 class ShopError(Exception):
     """Base exception for shop errors"""
     pass
@@ -55,6 +58,112 @@ class InsufficientBalanceError(ShopError):
 class TransactionError(ShopError):
     """Raised when transaction fails"""
     pass
+
+class QuantityModal(Modal):
+    def __init__(self, product_code: str, max_quantity: int):
+        super().__init__(title="🛍️ Jumlah Pembelian")
+        self.product_code = product_code
+        
+        self.quantity = TextInput(
+            label="Masukkan jumlah yang ingin dibeli",
+            placeholder=f"Maksimal {max_quantity}",
+            min_length=1,
+            max_length=3,
+            required=True
+        )
+        self.add_item(self.quantity)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        try:
+            quantity = int(self.quantity.value)
+            if quantity <= 0:
+                raise ValueError(MESSAGES.ERROR['INVALID_AMOUNT'])
+                
+            product_service = ProductManagerService(interaction.client)
+            balance_service = BalanceManagerService(interaction.client)
+            trx_manager = TransactionManager(interaction.client)
+            
+            # Get product details
+            product_response = await product_service.get_product(self.product_code)
+            if not product_response.success:
+                raise ValueError(product_response.error)
+            
+            product = product_response.data
+            
+            # Verify stock
+            stock_response = await product_service.get_stock_count(self.product_code)
+            if not stock_response.success:
+                raise ValueError(stock_response.error)
+                
+            if stock_response.data < quantity:
+                raise ValueError(MESSAGES.ERROR['INSUFFICIENT_STOCK'])
+            
+            # Calculate total price
+            total_price = float(product['price']) * quantity
+            
+            # Get user's GrowID
+            growid_response = await balance_service.get_growid(str(interaction.user.id))
+            if not growid_response.success:
+                raise ValueError(growid_response.error)
+            
+            growid = growid_response.data
+            
+            # Verify balance
+            balance_response = await balance_service.get_balance(growid)
+            if not balance_response.success:
+                raise ValueError(balance_response.error)
+            
+            balance = balance_response.data
+            if balance.total_wl() < total_price:
+                raise ValueError(MESSAGES.ERROR['INSUFFICIENT_BALANCE'])
+            
+            # Process purchase
+            purchase_response = await trx_manager.process_purchase(
+                growid=growid,
+                product_code=self.product_code,
+                quantity=quantity,
+                price=total_price
+            )
+            
+            if not purchase_response.success:
+                raise ValueError(purchase_response.error)
+            
+            # Create success message
+            embed = discord.Embed(
+                title="✅ Pembelian Berhasil",
+                color=COLORS.SUCCESS
+            )
+            
+            embed.add_field(
+                name="Detail Pembelian",
+                value=(
+                    f"```yml\n"
+                    f"Produk   : {product['name']}\n"
+                    f"Jumlah   : {quantity}x\n"
+                    f"Harga    : {total_price} WL\n"
+                    f"GrowID   : {growid}\n"
+                    "```"
+                ),
+                inline=False
+            )
+            
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            
+        except ValueError as e:
+            error_embed = discord.Embed(
+                title="❌ Error",
+                description=str(e),
+                color=COLORS.ERROR
+            )
+            await interaction.followup.send(embed=error_embed, ephemeral=True)
+        except Exception as e:
+            error_embed = discord.Embed(
+                title="❌ Error",
+                description=MESSAGES.ERROR['TRANSACTION_FAILED'],
+                color=COLORS.ERROR
+            )
+            await interaction.followup.send(embed=error_embed, ephemeral=True)
 
 class ProductSelect(Select):
     def __init__(self, products: List[Dict], balance_service, product_service, trx_manager):
@@ -143,7 +252,6 @@ class RegisterModal(Modal):
             if not growid or len(growid) < 3:
                 raise ValueError(MESSAGES.ERROR['INVALID_GROWID'])
             
-            # Register user with proper response handling
             register_response = await balance_service.register_user(
                 str(interaction.user.id),
                 growid
@@ -707,9 +815,10 @@ class LiveButtonManager(BaseLockHandler):
             self.current_message: Optional[discord.Message] = None
             self.stock_manager = None
             self.initialized = True
+
     def create_view(self):
         """Membuat view dengan button-button"""
-        return ShopView(self.bot)  # Tambahkan method ini
+        return ShopView(self.bot)
         
     async def set_stock_manager(self, stock_manager):
         """Set stock manager untuk integrasi"""
@@ -866,7 +975,6 @@ class LiveButtonManager(BaseLockHandler):
             self.logger.error(f"Error updating buttons: {e}")
             return False
 
-# Line 865-889: Update method cleanup dengan fallback mechanism
     async def cleanup(self):
         """Cleanup resources"""
         try:
@@ -899,7 +1007,7 @@ class LiveButtonManager(BaseLockHandler):
                 
         except Exception as e:
             self.logger.error(f"Error in cleanup: {e}")
-        
+
 class LiveButtonsCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -908,6 +1016,7 @@ class LiveButtonsCog(commands.Cog):
         self.logger = logging.getLogger("LiveButtonsCog")
         self._ready = asyncio.Event()
         self._initialization_lock = asyncio.Lock()
+        self.check_display.start()  # Start the background task
         self.logger.info("LiveButtonsCog initialized")
 
     async def wait_for_stock_manager(self, timeout=30) -> bool:
@@ -961,8 +1070,6 @@ class LiveButtonsCog(commands.Cog):
             if not await self.initialize_dependencies():
                 raise RuntimeError("Failed to initialize dependencies")
 
-            # Start display check loop
-            self.check_display.start()
             self.logger.info("LiveButtonsCog loaded successfully")
 
         except Exception as e:
@@ -981,17 +1088,15 @@ class LiveButtonsCog(commands.Cog):
     @tasks.loop(minutes=5.0)
     async def check_display(self):
         """Periodically check and update display"""
+        if not self._ready.is_set():
+            return
+            
         try:
-            if not self._ready.is_set():
-                self.logger.warning("LiveButtonsCog not ready yet")
-                return
-
             if not self.stock_manager:
                 if not await self.initialize_dependencies():
                     return
 
             current_message = self.stock_manager.current_stock_message
-            
             if not current_message:
                 self.logger.warning("Stock message not found, attempting recovery...")
                 if self.stock_manager:
@@ -1072,7 +1177,6 @@ async def setup(bot):
             
         except Exception as e:
             logging.error(f"Failed to load LiveButtonsCog: {e}")
-            # Cleanup if needed
             if hasattr(bot, COG_LOADED['LIVE_BUTTONS']):
                 delattr(bot, COG_LOADED['LIVE_BUTTONS'])
             raise
