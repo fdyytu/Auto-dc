@@ -298,25 +298,33 @@ class LiveStockCog(commands.Cog):
         """Setup when cog is loaded"""
         try:
             async with self._initialization_lock:
-                # Initialize services first
-                if not await self.stock_manager.initialize_services():
-                    raise RuntimeError("Failed to initialize LiveStock services")
-                
-                # Start update loop
-                self.update_stock.start()
-                self.logger.info("LiveStock cog loaded and started successfully")
+                async with asyncio.timeout(30):  # 30 second timeout
+                    # Initialize services first
+                    if not await self.stock_manager.initialize_services():
+                        raise RuntimeError("Failed to initialize LiveStock services")
+                    
+                    # Set ready state
+                    self.stock_manager._ready.set()
+                    
+                    # Start update loop
+                    self.update_stock.start()
+                    self.logger.info("LiveStock cog loaded and started successfully")
+                    
+        except asyncio.TimeoutError:
+            self.logger.error("LiveStock initialization timed out")
+            raise
         except Exception as e:
             self.logger.error(f"Error in cog_load: {e}")
             raise
-        
-    def cog_unload(self):
-        """Cleanup when unloading"""
-        try:
-            self.update_stock.cancel()
-            asyncio.create_task(self.stock_manager.cleanup())
-            self.logger.info("LiveStock cog unloaded successfully")
-        except Exception as e:
-            self.logger.error(f"Error in cog_unload: {e}")
+            
+        def cog_unload(self):
+            """Cleanup when unloading"""
+            try:
+                self.update_stock.cancel()
+                asyncio.create_task(self.stock_manager.cleanup())
+                self.logger.info("LiveStock cog unloaded successfully")
+            except Exception as e:
+                self.logger.error(f"Error in cog_unload: {e}")
 
     @tasks.loop(seconds=UPDATE_INTERVAL.LIVE_STOCK)
     async def update_stock(self):
