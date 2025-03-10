@@ -3,7 +3,7 @@
 Discord Bot for Store DC
 Author: fdyytu
 Created at: 2025-03-07 18:30:16 UTC
-Last Modified: 2025-03-09 21:51:00 UTC
+Last Modified: 2025-03-10 12:44:48 UTC
 """
 
 import sys
@@ -200,27 +200,41 @@ class StoreBot(commands.Bot):
                     logger.info(f"Loading service: {ext}")
                     await self.load_extension(ext)
                     logger.info(f"Successfully loaded service: {ext}")
-                    await asyncio.sleep(1)  # Add delay between service loads
+                    await asyncio.sleep(2)  # Increased delay between service loads
                 except Exception as e:
                     logger.critical(f"Failed to load critical service {ext}: {e}")
                     await self.close()
                     return
-            
-            # Verify all services loaded correctly
-            logger.info("Verifying core services...")
-            if not EXTENSIONS.verify_loaded(self):
-                logger.critical("Critical services failed to load properly")
+
+            # Load LiveStockCog first
+            logger.info("Loading LiveStockCog...")
+            try:
+                await self.load_extension('ext.live_stock')
+                await asyncio.sleep(5)  # Give time for LiveStockCog to initialize
+                logger.info("Successfully loaded LiveStockCog")
+            except Exception as e:
+                logger.critical(f"Failed to load LiveStockCog: {e}")
                 await self.close()
                 return
-            
-            # Load core features with dependencies
-            logger.info("Loading core features...")
-            for ext in EXTENSIONS.FEATURES:
+
+            # Then load LiveButtonsCog
+            logger.info("Loading LiveButtonsCog...")
+            try:
+                await self.load_extension('ext.live_buttons')
+                await asyncio.sleep(3)  # Wait for LiveButtonsCog to initialize
+                logger.info("Successfully loaded LiveButtonsCog")
+            except Exception as e:
+                logger.error(f"Failed to load LiveButtonsCog: {e}")
+                # Continue loading other extensions even if this fails
+
+            # Load remaining features
+            logger.info("Loading remaining features...")
+            for ext in [e for e in EXTENSIONS.FEATURES if e not in ['ext.live_stock', 'ext.live_buttons']]:
                 try:
                     logger.info(f"Loading feature: {ext}")
                     await self.load_extension(ext)
                     logger.info(f"Successfully loaded feature: {ext}")
-                    await asyncio.sleep(2)  # Add longer delay for features
+                    await asyncio.sleep(2)
                 except Exception as e:
                     logger.error(f"Failed to load feature {ext}: {e}")
             
