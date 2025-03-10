@@ -1,8 +1,15 @@
 """
 Constants for Store DC Bot
-Author: fdyyuk
+Author: fdyytu
 Created at: 2025-03-07 18:04:56 UTC
-Last Modified: 2025-03-08 14:28:37 UTC
+Last Modified: 2025-03-10 10:09:16 UTC
+
+Updates:
+- Added VERSION tracking
+- Added TIMEOUTS settings
+- Added LIVE_STATUS states
+- Updated MESSAGES
+- Enhanced error handling
 """
 
 import discord
@@ -10,7 +17,38 @@ from enum import Enum, auto
 from typing import Dict, Union, List
 from datetime import timedelta
 
-# Tambahkan di bagian atas file setelah import
+# Version Tracking
+class VERSION:
+    """Version tracking for components"""
+    LIVE_STOCK = "1.0.0"
+    LIVE_BUTTONS = "1.0.0"
+    PRODUCT = "1.0.0"
+    BALANCE = "1.0.0"
+    TRANSACTION = "1.0.0"
+    ADMIN = "1.0.0"
+
+# System Timeouts
+class TIMEOUTS:
+    """System timeout settings"""
+    INITIALIZATION = 30  # 30 seconds
+    LOCK_ACQUISITION = 3  # 3 seconds
+    SERVICE_CALL = 5    # 5 seconds
+    CACHE_OPERATION = 2 # 2 seconds
+    SYNC_RETRY = 5     # 5 seconds retry interval
+    MAX_RETRIES = 3    # Maximum number of retries
+
+# Live System Status States
+class LIVE_STATUS:
+    """Live system status states"""
+    INITIALIZING = "initializing"
+    READY = "ready"
+    MAINTENANCE = "maintenance"
+    ERROR = "error"
+    SYNCING = "syncing"
+    RECOVERING = "recovering"
+    SHUTDOWN = "shutdown"
+
+# Cog Loading Status
 COG_LOADED = {
     'PRODUCT': 'product_manager_loaded',
     'BALANCE': 'balance_manager_loaded',
@@ -19,6 +57,7 @@ COG_LOADED = {
     'LIVE_BUTTONS': 'live_buttons_loaded',
     'ADMIN': 'admin_service_loaded'
 }
+
 # File Size Settings
 MAX_STOCK_FILE_SIZE = 5 * 1024 * 1024  # 5MB max file size for stock files
 MAX_ATTACHMENT_SIZE = 8 * 1024 * 1024  # 8MB max attachment size
@@ -79,6 +118,26 @@ class Balance:
         dl = remaining // 100
         wl = remaining % 100
         return cls(wl, dl, bgl)
+
+    @classmethod
+    def from_string(cls, balance_str: str) -> 'Balance':
+        """Create Balance object from string representation"""
+        try:
+            if not balance_str:
+                return cls()
+            parts = balance_str.split(',')
+            wl = dl = bgl = 0
+            for part in parts:
+                part = part.strip()
+                if 'WL' in part:
+                    wl = int(part.replace('WL', '').strip())
+                elif 'DL' in part:
+                    dl = int(part.replace('DL', '').strip())
+                elif 'BGL' in part:
+                    bgl = int(part.replace('BGL', '').strip())
+            return cls(wl, dl, bgl)
+        except Exception:
+            return cls()
 
     def __eq__(self, other):
         if not isinstance(other, Balance):
@@ -202,16 +261,18 @@ class Stock:
     MAX_STOCK = 999999
     MIN_STOCK = 0
 
-# Discord Colors - Updated with new colors
+# Discord Colors
 class COLORS:
     SUCCESS = discord.Color.green()
     ERROR = discord.Color.red()
     WARNING = discord.Color.yellow()
     INFO = discord.Color.blue()
     DEFAULT = discord.Color.blurple()
-    SHOP = discord.Color.purple()      # New
-    ADMIN = discord.Color.dark_grey()  # New
-    PRODUCT = discord.Color.teal()     # New
+    SHOP = discord.Color.purple()
+    ADMIN = discord.Color.dark_grey()
+    PRODUCT = discord.Color.teal()
+    SYNC = discord.Color.orange()    # New
+    SYSTEM = discord.Color.gold()    # New
 
 # Message Templates - Updated with new messages
 class MESSAGES:
@@ -222,13 +283,16 @@ class MESSAGES:
         'BALANCE_UPDATE': "✅ Balance berhasil diupdate!",
         'REGISTRATION': "✅ Registrasi berhasil! GrowID: {growid}",
         'WORLD_UPDATE': "✅ World info berhasil diupdate!",
-        'PRODUCT_CREATED': "✅ Product created successfully.",      # New
-        'PRODUCT_UPDATED': "✅ Product updated successfully.",      # New
-        'PRODUCT_DELETED': "✅ Product deleted successfully.",      # New
-        'STOCK_SOLD': "✅ Stock sold successfully.",               # New
-        'CACHE_CLEARED': "✅ Cache cleared successfully.",          # New  <-- Tambahkan koma di sini
-        'COG_LOADED': "✅ {} loaded successfully."                  # New
+        'PRODUCT_CREATED': "✅ Product created successfully.",
+        'PRODUCT_UPDATED': "✅ Product updated successfully.",
+        'PRODUCT_DELETED': "✅ Product deleted successfully.",
+        'STOCK_SOLD': "✅ Stock sold successfully.",
+        'CACHE_CLEARED': "✅ Cache cleared successfully.",
+        'COG_LOADED': "✅ {} loaded successfully.",
+        'SYNC_SUCCESS': "✅ Components synchronized successfully.",  # New
+        'RECOVERY_SUCCESS': "✅ System recovered successfully."      # New
     }
+    
     ERROR = {
         'INSUFFICIENT_BALANCE': "❌ Balance tidak cukup!",
         'OUT_OF_STOCK': "❌ Stock habis!",
@@ -245,20 +309,32 @@ class MESSAGES:
         'INVALID_GROWID': "❌ GrowID tidak valid!",
         'PRODUCT_NOT_FOUND': "❌ Produk tidak ditemukan!",
         'INSUFFICIENT_STOCK': "❌ Stock tidak mencukupi!",
-        'INVALID_PRODUCT_CODE': "❌ Invalid product code format.",        # New
-        'PRODUCT_EXISTS': "❌ Product with this code already exists.",    # New
-        'CACHE_ERROR': "❌ Error accessing cache. Please try again.",     # New
-        'DATABASE_ERROR': "❌ Database error occurred. Please try again.", # New
-        'LOCK_ACQUISITION_FAILED': "❌ Could not acquire lock. Please try again." # New
+        'INVALID_PRODUCT_CODE': "❌ Invalid product code format.",
+        'PRODUCT_EXISTS': "❌ Product with this code already exists.",
+        'CACHE_ERROR': "❌ Error accessing cache. Please try again.",
+        'DATABASE_ERROR': "❌ Database error occurred. Please try again.",
+        'LOCK_ACQUISITION_FAILED': "❌ Could not acquire lock. Please try again.",
+        'DISPLAY_ERROR': "❌ Terjadi kesalahan pada display sistem",  # New
+        'SYNC_ERROR': "❌ Gagal mensinkronkan komponen sistem",       # New
+        'INITIALIZATION_ERROR': "❌ Gagal menginisialisasi sistem"    # New
     }
     
     INFO = {
         'PROCESSING': "⏳ Sedang memproses...",
         'MAINTENANCE': "🛠️ Sistem dalam maintenance",
-        'COOLDOWN': "⏳ Mohon tunggu {time} detik"
+        'COOLDOWN': "⏳ Mohon tunggu {time} detik",
+        'INITIALIZING': "⚙️ Sistem sedang dipersiapkan...",          # New
+        'SYNCING': "🔄 Sedang mensinkronkan komponen...",            # New
+        'RECOVERING': "🔧 Sistem sedang dalam proses pemulihan..."    # New
     }
 
-# Product Manager Constants (New)
+    WARNING = {
+        'MESSAGE_NOT_FOUND': "⚠️ Pesan tidak ditemukan",
+        'LOW_STOCK': "⚠️ Stok menipis",
+        'SYNC_WARNING': "⚠️ Sinkronisasi tidak sempurna",
+        'VERSION_MISMATCH': "⚠️ Versi komponen tidak sesuai"
+    }
+
 class PRODUCT_CONSTANTS:
     """Konstanta khusus untuk product manager"""
     MAX_NAME_LENGTH = 50
@@ -425,9 +501,9 @@ class LockError(Exception):
 # Notification Channel IDs for Product Manager (New)
 class NOTIFICATION_CHANNELS:
     """Channel IDs untuk notifikasi sistem"""
-    TRANSACTIONS = 0      # Ganti dengan ID channel transaksi
-    PRODUCT_LOGS = 0     # Ganti dengan ID channel product logs
-    STOCK_LOGS = 0       # Ganti dengan ID channel stock logs
-    ADMIN_LOGS = 0       # Ganti dengan ID channel admin logs
-    ERROR_LOGS = 0       # Ganti dengan ID channel error logs
-    SHOP = 0            # Ganti dengan ID channel shop
+    TRANSACTIONS = 1348580531519881246      # Ganti dengan ID channel transaksi
+    PRODUCT_LOGS = 1348580616647610399     # Ganti dengan ID channel product logs
+    STOCK_LOGS = 1348580676202528839       # Ganti dengan ID channel stock logs
+    ADMIN_LOGS = 1348580745433710625       # Ganti dengan ID channel admin logs
+    ERROR_LOGS = 1348581120723128390       # Ganti dengan ID channel error logs
+    SHOP = 1319281983796547595            # Ganti dengan ID channel shop
