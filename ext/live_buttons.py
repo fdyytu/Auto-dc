@@ -1031,22 +1031,36 @@ class LiveButtonsCog(commands.Cog):
             retries = 0
             max_retries = 5
             
+            self.logger.info(f"Starting StockManager wait with {max_retries} max retries and {timeout}s timeout")
+            
             while (datetime.utcnow() - start_time).total_seconds() < timeout:
                 stock_cog = self.bot.get_cog('LiveStockCog')
                 retries += 1
                 
                 self.logger.info(f"Attempt {retries}/{max_retries} to get StockManager")
                 
-                if stock_cog and hasattr(stock_cog, 'stock_manager'):
-                    self.stock_manager = stock_cog.stock_manager
-                    if self.stock_manager:
-                        self.logger.info(f"StockManager found after {retries} attempts")
-                        # Tambahan verifikasi
-                        if hasattr(self.stock_manager, 'initialized') and self.stock_manager.initialized:
-                            self.logger.info("StockManager is fully initialized")
-                            return True
+                if stock_cog:
+                    self.logger.info("LiveStockCog found")
+                    if hasattr(stock_cog, 'stock_manager'):
+                        self.logger.info("stock_manager attribute found")
+                        self.stock_manager = stock_cog.stock_manager
+                        if self.stock_manager:
+                            self.logger.info("StockManager instance found")
+                            if hasattr(self.stock_manager, 'initialized'):
+                                self.logger.info("Checking if StockManager is initialized")
+                                if self.stock_manager.initialized:
+                                    self.logger.info("StockManager is fully initialized")
+                                    return True
+                                else:
+                                    self.logger.warning("StockManager exists but not initialized")
+                            else:
+                                self.logger.warning("StockManager missing 'initialized' attribute")
                         else:
-                            self.logger.warning("StockManager found but not fully initialized")
+                            self.logger.warning("stock_manager attribute is None")
+                    else:
+                        self.logger.warning("LiveStockCog missing stock_manager attribute")
+                else:
+                    self.logger.warning("LiveStockCog not found")
                 
                 if retries >= max_retries:
                     self.logger.error("Max retries reached waiting for StockManager")
@@ -1134,57 +1148,7 @@ class LiveButtonsCog(commands.Cog):
             self.logger.error(f"Error in cog_load: {e}", exc_info=True)
             raise
     
-    async def wait_for_stock_manager(self, timeout=15) -> bool:
-        """Wait for stock manager to be available"""
-        try:
-            start_time = datetime.utcnow()
-            retries = 0
-            max_retries = 5
-            
-            self.logger.info(f"Starting StockManager wait with {max_retries} max retries and {timeout}s timeout")
-            
-            while (datetime.utcnow() - start_time).total_seconds() < timeout:
-                stock_cog = self.bot.get_cog('LiveStockCog')
-                retries += 1
-                
-                self.logger.info(f"Attempt {retries}/{max_retries} to get StockManager")
-                
-                if stock_cog:
-                    self.logger.info("LiveStockCog found")
-                    if hasattr(stock_cog, 'stock_manager'):
-                        self.logger.info("stock_manager attribute found")
-                        self.stock_manager = stock_cog.stock_manager
-                        if self.stock_manager:
-                            self.logger.info("StockManager instance found")
-                            if hasattr(self.stock_manager, 'initialized'):
-                                self.logger.info("Checking if StockManager is initialized")
-                                if self.stock_manager.initialized:
-                                    self.logger.info("StockManager is fully initialized")
-                                    return True
-                                else:
-                                    self.logger.warning("StockManager exists but not initialized")
-                            else:
-                                self.logger.warning("StockManager missing 'initialized' attribute")
-                        else:
-                            self.logger.warning("stock_manager attribute is None")
-                    else:
-                        self.logger.warning("LiveStockCog missing stock_manager attribute")
-                else:
-                    self.logger.warning("LiveStockCog not found")
-                
-                if retries >= max_retries:
-                    self.logger.error("Max retries reached waiting for StockManager")
-                    return False
-                    
-                self.logger.info(f"Waiting 3 seconds before next attempt...")
-                await asyncio.sleep(3)
-                
-            self.logger.error(f"StockManager wait timeout after {timeout} seconds")
-            return False
-            
-        except Exception as e:
-            self.logger.error(f"Error waiting for stock manager: {e}", exc_info=True)
-            return False
+
 
     @tasks.loop(minutes=5.0)
     async def check_display(self):
