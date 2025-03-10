@@ -804,17 +804,21 @@ class LiveButtonManager(BaseLockHandler):
             cls._instance.initialized = False
         return cls._instance
 
-    def __init__(self, bot):
-        if not self.initialized:
-            super().__init__()
-            self.bot = bot
-            self.logger = logging.getLogger("LiveButtonManager")
-            self.cache_manager = CacheManager()
-            self.admin_service = AdminService(bot)
-            self.stock_channel_id = int(self.bot.config.get('id_live_stock', 0))
-            self.current_message: Optional[discord.Message] = None
-            self.stock_manager = None
-            self.initialized = True
+# Di LiveButtonManager.__init__ (Line ~808)
+def __init__(self, bot):
+    if not self.initialized:
+        super().__init__()
+        self.bot = bot
+        self.logger = logging.getLogger("LiveButtonManager")
+        self.logger.info("Initializing LiveButtonManager...")  # Debug log
+        self.cache_manager = CacheManager()
+        self.admin_service = AdminService(bot)
+        self.stock_channel_id = int(self.bot.config.get('id_live_stock', 0))
+        self.logger.info(f"Stock channel ID: {self.stock_channel_id}")  # Debug log
+        self.current_message = None
+        self.stock_manager = None
+        self.initialized = True
+        self.logger.info("LiveButtonManager initialized")  # Debug log
 
     def create_view(self):
         """Membuat view dengan button-button"""
@@ -1016,7 +1020,6 @@ class LiveButtonsCog(commands.Cog):
         self.logger = logging.getLogger("LiveButtonsCog")
         self._ready = asyncio.Event()
         self._initialization_lock = asyncio.Lock()
-        self.check_display.start()  # Start the background task
         self.logger.info("LiveButtonsCog initialized")
 
     async def wait_for_stock_manager(self, timeout=30) -> bool:
@@ -1028,9 +1031,11 @@ class LiveButtonsCog(commands.Cog):
                 if stock_cog and hasattr(stock_cog, 'stock_manager'):
                     self.stock_manager = stock_cog.stock_manager
                     if self.stock_manager:
-                        self.logger.info("StockManager found and assigned")
+                        self.logger.info(f"StockManager found and ready at {datetime.utcnow()}")
                         return True
+                self.logger.debug("Waiting for StockManager...")
                 await asyncio.sleep(1)
+            self.logger.error("StockManager wait timeout")
             return False
         except Exception as e:
             self.logger.error(f"Error waiting for stock manager: {e}")
@@ -1065,17 +1070,23 @@ class LiveButtonsCog(commands.Cog):
         try:
             self.logger.info("LiveButtonsCog loading...")
             await self.bot.wait_until_ready()
-
-            # Initialize dependencies
-            if not await self.initialize_dependencies():
-                raise RuntimeError("Failed to initialize dependencies")
-
-            self.logger.info("LiveButtonsCog loaded successfully")
-
+    
+            # Initialize dependencies dengan timeout
+            async with asyncio.timeout(30):  # 30 detik timeout
+                if not await self.initialize_dependencies():
+                    raise RuntimeError("Failed to initialize dependencies")
+    
+            # Start background task SETELAH dependencies siap
+            self.check_display.start()
+            self.logger.info("LiveButtonsCog loaded and started successfully")
+    
+        except asyncio.TimeoutError:
+            self.logger.error("Initialization timed out")
+            raise
         except Exception as e:
             self.logger.error(f"Error in cog_load: {e}")
             raise
-
+    
     def cog_unload(self):
         """Cleanup when cog is unloaded"""
         try:
