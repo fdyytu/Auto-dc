@@ -294,12 +294,32 @@ class LiveStockCog(commands.Cog):
         self.logger = logging.getLogger("LiveStockCog")
         self._initialization_lock = asyncio.Lock()
         
+    # Tambahkan method ini 
+    async def _validate_channel(self):
+        """Validate stock channel exists"""
+        channel_id = self.bot.config['id_live_stock']
+        channel = self.bot.get_channel(channel_id)
+        
+        if not channel:
+            self.logger.error(f"Stock channel with ID {channel_id} not found")
+            return False
+            
+        self.channel = channel
+        return True
+    
     async def cog_load(self):
         """Setup when cog is loaded"""
         try:
+            # Validate channel first
+            if not await self._validate_channel():
+                raise RuntimeError("Stock channel validation failed")
+                
             async with self._initialization_lock:
                 async with asyncio.timeout(30):  # 30 second timeout
-                    # Initialize services first
+                    # Initialize stock manager
+                    self.stock_manager = LiveStockManager(self.bot, self.channel)
+                    
+                    # Initialize services
                     if not await self.stock_manager.initialize_services():
                         raise RuntimeError("Failed to initialize LiveStock services")
                     
@@ -316,15 +336,16 @@ class LiveStockCog(commands.Cog):
         except Exception as e:
             self.logger.error(f"Error in cog_load: {e}")
             raise
+    
+    def cog_unload(self):
+        """Cleanup when unloading"""
+        try:
+            self.update_stock.cancel()
+            asyncio.create_task(self.stock_manager.cleanup())
+            self.logger.info("LiveStock cog unloaded successfully")
+        except Exception as e:
+            self.logger.error(f"Error in cog_unload: {e}")
             
-        def cog_unload(self):
-            """Cleanup when unloading"""
-            try:
-                self.update_stock.cancel()
-                asyncio.create_task(self.stock_manager.cleanup())
-                self.logger.info("LiveStock cog unloaded successfully")
-            except Exception as e:
-                self.logger.error(f"Error in cog_unload: {e}")
 
     @tasks.loop(seconds=UPDATE_INTERVAL.LIVE_STOCK)
     async def update_stock(self):
