@@ -1075,7 +1075,7 @@ class LiveButtonsCog(commands.Cog):
         except Exception as e:
             self.logger.error(f"Error waiting for stock manager: {e}", exc_info=True)
             return False
-    # Line 1079-1116
+# Ganti fungsi initialize_dependencies() (line 1079-1116)
     async def initialize_dependencies(self) -> bool:
         """Initialize all dependencies"""
         try:
@@ -1086,48 +1086,59 @@ class LiveButtonsCog(commands.Cog):
                     self.logger.info("Dependencies already initialized")
                     return True
     
-                self.logger.info("Waiting for bot to be ready...")
-                try:
-                    await asyncio.wait_for(self.bot.wait_until_ready(), timeout=30)
-                except asyncio.TimeoutError:
-                    self.logger.error("Timeout waiting for bot to be ready")
-                    return False
-                self.logger.info("Bot is ready")
+                # Wait for bot to be ready first
+                if not self.bot.is_ready():
+                    self.logger.info("Waiting for bot to be ready...")
+                    try:
+                        await asyncio.wait_for(self.bot._ready.wait(), timeout=45)
+                    except asyncio.TimeoutError:
+                        self.logger.error("Timeout waiting for bot to be ready")
+                        return False
     
-                # Wait for stock manager with retries
-                max_retries = 5
-                for attempt in range(max_retries):
-                    self.logger.info(f"Attempt {attempt + 1}/{max_retries} to get StockManager")
-                    
-                    stock_cog = self.bot.get_cog('LiveStockCog')
-                    if stock_cog and stock_cog.stock_manager and stock_cog.stock_manager._ready.is_set():
-                        self.stock_manager = stock_cog.stock_manager
-                        self.logger.info("StockManager found and is ready")
-                        break
-                        
-                    if attempt < max_retries - 1:
-                        self.logger.info("Waiting before next attempt...")
-                        await asyncio.sleep(3)
+                # Get LiveStockCog and validate channel
+                stock_cog = self.bot.get_cog('LiveStockCog')
+                if not stock_cog:
+                    self.logger.error("LiveStockCog not found")
+                    return False
+    
+                channel_id = self.bot.config['id_live_stock']
+                channel = self.bot.get_channel(channel_id)
+                if not channel:
+                    self.logger.error(f"Stock channel with ID {channel_id} not found")
+                    return False
+    
+                # Get and validate stock manager
+                if not hasattr(stock_cog, 'stock_manager'):
+                    self.logger.error("Stock manager not found in LiveStockCog")
+                    return False
+    
+                self.stock_manager = stock_cog.stock_manager
                 
-                if not self.stock_manager:
-                    self.logger.error("Failed to get initialized StockManager")
+                # Wait for stock manager to be ready
+                try:
+                    if not self.stock_manager._ready.is_set():
+                        self.logger.info("Waiting for stock manager to be ready...")
+                        await asyncio.wait_for(self.stock_manager._ready.wait(), timeout=30)
+                except asyncio.TimeoutError:
+                    self.logger.error("Timeout waiting for stock manager")
                     return False
     
                 # Set stock manager to button manager
-                self.logger.info("Setting stock manager to button manager...")
                 try:
                     await self.button_manager.set_stock_manager(self.stock_manager)
                     self.logger.info("Stock manager set successfully")
                 except Exception as e:
                     self.logger.error(f"Error setting stock manager: {e}")
                     return False
-                
+    
                 # Mark as ready
-                self.logger.info("Setting ready state...")
                 self._ready.set()
                 self.logger.info("Dependencies initialized successfully")
                 return True
     
+        except asyncio.CancelledError:
+            self.logger.warning("Initialization was cancelled")
+            return False
         except Exception as e:
             self.logger.error(f"Error initializing dependencies: {e}", exc_info=True)
             return False
