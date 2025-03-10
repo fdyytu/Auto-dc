@@ -1119,10 +1119,7 @@ class LiveButtonsCog(commands.Cog):
         """Setup when cog is loaded"""
         try:
             self.logger.info("LiveButtonsCog loading...")
-            self.logger.info("Waiting for bot to be ready...")
-            await self.bot.wait_until_ready()
-            self.logger.info("Bot is ready, proceeding with initialization...")
-    
+            
             # Initialize dependencies dengan timeout dan detailed logging
             try:
                 async with asyncio.timeout(30):  # 30 detik timeout
@@ -1143,9 +1140,12 @@ class LiveButtonsCog(commands.Cog):
             except asyncio.TimeoutError:
                 self.logger.error("Initialization timed out after 30 seconds")
                 raise RuntimeError("Initialization timed out")
+            except Exception as e:
+                self.logger.error(f"Error during initialization: {e}", exc_info=True)
+                raise
     
         except Exception as e:
-            self.logger.error(f"Error in cog_load: {e}", exc_info=True)
+            self.logger.error(f"Critical error in cog_load: {e}", exc_info=True)
             raise
     
 
