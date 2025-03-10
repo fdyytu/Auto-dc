@@ -3,7 +3,7 @@
 Discord Bot for Store DC
 Author: fdyytu
 Created at: 2025-03-07 18:30:16 UTC
-Last Modified: 2025-03-10 12:44:48 UTC
+Last Modified: 2025-03-10 13:04:33 UTC
 """
 
 import sys
@@ -206,26 +206,47 @@ class StoreBot(commands.Bot):
                     await self.close()
                     return
 
-            # Load LiveStockCog first
+            # Load LiveStockCog first with proper channel validation
             logger.info("Loading LiveStockCog...")
             try:
+                # Validate stock channel first
+                stock_channel_id = self.config['id_live_stock']
+                await asyncio.sleep(2)  # Wait for gateway connection
+                
+                if not self.get_channel(stock_channel_id):
+                    logger.error(f"Stock channel with ID {stock_channel_id} not found")
+                    raise RuntimeError("Stock channel not found")
+                    
                 await self.load_extension('ext.live_stock')
                 await asyncio.sleep(5)  # Give time for LiveStockCog to initialize
+                
+                # Verify LiveStockCog loaded properly
+                stock_cog = self.get_cog('LiveStockCog')
+                if not stock_cog or not hasattr(stock_cog, 'stock_manager'):
+                    raise RuntimeError("LiveStockCog failed to initialize properly")
+                    
                 logger.info("Successfully loaded LiveStockCog")
+                
+                # Now load LiveButtonsCog
+                logger.info("Loading LiveButtonsCog...")
+                try:
+                    await self.load_extension('ext.live_buttons')
+                    await asyncio.sleep(3)  # Wait for LiveButtonsCog to initialize
+                    
+                    # Verify LiveButtonsCog loaded properly
+                    buttons_cog = self.get_cog('LiveButtonsCog')
+                    if not buttons_cog:
+                        raise RuntimeError("LiveButtonsCog failed to initialize")
+                        
+                    logger.info("Successfully loaded LiveButtonsCog")
+                except Exception as e:
+                    logger.error(f"Failed to load LiveButtonsCog: {e}")
+                    # Continue loading other extensions even if this fails
+
             except Exception as e:
                 logger.critical(f"Failed to load LiveStockCog: {e}")
                 await self.close()
                 return
-
-            # Then load LiveButtonsCog
-            logger.info("Loading LiveButtonsCog...")
-            try:
-                await self.load_extension('ext.live_buttons')
-                await asyncio.sleep(3)  # Wait for LiveButtonsCog to initialize
-                logger.info("Successfully loaded LiveButtonsCog")
-            except Exception as e:
-                logger.error(f"Failed to load LiveButtonsCog: {e}")
-                # Continue loading other extensions even if this fails
 
             # Load remaining features
             logger.info("Loading remaining features...")
