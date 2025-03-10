@@ -804,20 +804,27 @@ class LiveButtonManager(BaseLockHandler):
             cls._instance.initialized = False
         return cls._instance
 
-# Di LiveButtonManager.__init__ (Line ~808)
-def __init__(self, bot):
-    if not self.initialized:
-        super().__init__()
-        self.bot = bot
-        self.logger = logging.getLogger("LiveButtonManager")
-        self.logger.info("Initializing LiveButtonManager...")  # Debug log
-        self.cache_manager = CacheManager()
-        self.admin_service = AdminService(bot)
-        self.stock_channel_id = int(self.bot.config.get('id_live_stock', 0))
-        self.logger.info(f"Stock channel ID: {self.stock_channel_id}")  # Debug log
-        self.current_message = None
-        self.stock_manager = None
-        self.initialized = True
+class LiveButtonManager(BaseLockHandler):
+    _instance = None
+    _instance_lock = asyncio.Lock()
+
+    def __new__(cls, bot):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance.initialized = False
+        return cls._instance
+
+    def __init__(self, bot):
+        if not self.initialized:
+            BaseLockHandler.__init__(self)  # Ganti ini
+            self.bot = bot
+            self.logger = logging.getLogger("LiveButtonManager")
+            self.cache_manager = CacheManager()
+            self.admin_service = AdminService(bot)
+            self.stock_channel_id = int(self.bot.config.get('id_live_stock', 0))
+            self.current_message: Optional[discord.Message] = None
+            self.stock_manager = None
+            self.initialized = True
         self.logger.info("LiveButtonManager initialized")  # Debug log
 
     def create_view(self):
