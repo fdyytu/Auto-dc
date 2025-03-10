@@ -1,33 +1,28 @@
 #!/usr/bin/env python3
 """
-Discord Bot for Store DC
+Discord Bot for Store DC (REST API Version)
 Author: fdyytu
-Created at: 2025-03-07 18:30:16 UTC
-Last Modified: 2025-03-10 17:02:28 UTC
+Created at: 2025-03-10 18:56:54 UTC
+Last Modified: 2025-03-10 18:56:54 UTC
 """
 
 import sys
 import os
+import aiohttp
+import sqlite3
+from discord.ext import commands
+import asyncio
+import logging
+import logging.handlers
+from datetime import datetime, timezone
+import json
 from pathlib import Path
 
 # Add project root to Python path
 project_root = Path(__file__).parent
 sys.path.append(str(project_root))
 
-# Core imports
-import discord
-from discord.ext import commands
-import json
-import logging
-import asyncio
-import aiohttp
-import sqlite3
-from datetime import datetime, timezone
-from logging.handlers import RotatingFileHandler
-import re
-import socket
-
-# Import constants first
+# Import constants
 from ext.constants import (
     COLORS,
     MESSAGES,
@@ -43,526 +38,259 @@ from ext.constants import (
     LOGGING,
     PATHS,
     Database,
-    CommandCooldown
+    CommandCooldown,
+    NOTIFICATION_CHANNELS
 )
 
-# Import database
-from database import setup_database, get_connection
-
-# Import handlers and managers
-from ext.cache_manager import CacheManager
-from ext.base_handler import BaseLockHandler, BaseResponseHandler
-from utils.command_handler import AdvancedCommandHandler
-
-# Channel configuration
-CHANNEL_CONFIG = {
-    'id_live_stock': 'Live Stock Channel',
-    'id_log_purch': 'Purchase Log Channel',
-    'id_donation_log': 'Donation Log Channel',
-    'id_history_buy': 'Purchase History Channel'
-}
-
-# Initialize basic logging first
+# Initialize basic logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format=LOGGING.FORMAT,
     handlers=[logging.StreamHandler()]
 )
 logger = logging.getLogger(__name__)
 
-def validate_token(token: str) -> bool:
-    """Validate Discord bot token format"""
-    if not token:
-        return False
-        
-    # Bersihkan token dari whitespace dan karakter newline
-    token = token.strip().replace('\n', '').replace('\r', '')
-    
-    # Debug info
-    parts = token.split('.')
-    logger.info(f"Token parts: {len(parts)}")
-    if len(parts) == 3:
-        logger.info(f"Part lengths: {len(parts[0])}, {len(parts[1])}, {len(parts[2])}")
-    
-    # Token minimal harus memiliki 3 bagian yang dipisahkan oleh titik
-    if len(parts) != 3:
-        logger.error("Token harus memiliki 3 bagian yang dipisahkan oleh titik")
-        return False
-        
-    # Validasi panjang setiap bagian
-    if not (20 <= len(parts[0]) <= 30):  # Lebih fleksibel untuk bagian pertama
-        logger.error("Bagian pertama token tidak valid (harus 20-30 karakter)")
-        return False
-        
-    if not (4 <= len(parts[1]) <= 8):  # Lebih fleksibel untuk bagian kedua
-        logger.error("Bagian kedua token tidak valid (harus 4-8 karakter)")
-        return False
-        
-    if not (24 <= len(parts[2]) <= 40):  # Lebih fleksibel untuk bagian ketiga
-        logger.error("Bagian ketiga token tidak valid (harus 24-40 karakter)")
-        return False
-        
-    # Validasi karakter yang diizinkan
-    allowed_chars = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-")
-    if not all(c in allowed_chars for c in token.replace('.', '')):
-        logger.error("Token mengandung karakter yang tidak valid")
-        return False
-        
-    return True
-
-def setup_project_structure():
-    """Create necessary directories and files"""
-    dirs = ['logs', 'ext', 'utils', 'cogs', 'data', 'temp', 'backups']
-    for directory in dirs:
-        Path(directory).mkdir(exist_ok=True)
-        init_file = Path(directory) / '__init__.py'
-        init_file.touch(exist_ok=True)
-
-def check_dependencies():
-    """Check if all required dependencies are installed"""
-    required = {
-        'discord.py': 'discord',
-        'aiohttp': 'aiohttp',
-        'sqlite3': 'sqlite3',
-        'asyncio': 'asyncio',
-        'PyNaCl': 'nacl'  # Optional for voice support
-    }
-    
-    missing = []
-    for package, import_name in required.items():
-        try:
-            __import__(import_name)
-        except ImportError:
-            if package != 'PyNaCl':  # Skip PyNaCl as it's optional
-                missing.append(package)
-    
-    if missing:
-        logger.critical(f"Missing required packages: {', '.join(missing)}")
-        logger.info("Please install required packages using:")
-        logger.info(f"pip install {' '.join(missing)}")
-        sys.exit(1)
-
-# Check dependencies and setup structure first
-check_dependencies()
-setup_project_structure()
-
-# Setup enhanced logging
-log_dir = Path(PATHS.LOGS)
-log_dir.mkdir(exist_ok=True)
-
-logging.basicConfig(
-    level=logging.INFO,
-    format=LOGGING.FORMAT,
-    handlers=[
-        RotatingFileHandler(
-            log_dir / 'bot.log',
-            maxBytes=LOGGING.MAX_BYTES,
-            backupCount=LOGGING.BACKUP_COUNT,
-            encoding='utf-8'
-        ),
-        logging.StreamHandler()
-    ]
-)
-
-def load_config():
-    """Load and validate configuration"""
-    logger.info(f"Membaca config dari: {os.path.abspath(PATHS.CONFIG)}")
-    
-    # Gunakan keys dari CHANNEL_CONFIG + tambahan ID yang diperlukan
-    id_keys = list(CHANNEL_CONFIG.keys()) + ['guild_id', 'admin_id']
-    required_keys = ['token'] + id_keys
-    
-    try:
-        with open(PATHS.CONFIG, 'r', encoding='utf-8') as f:
-            config = json.load(f)
-            
-        # Validate token
-        token = config.get('token', '').strip()
-        if not validate_token(token):
-            logger.critical("Token format tidak valid! Harap periksa token di config.json")
-            logger.info("Format token yang benar: 24 karakter + '.' + 6 karakter + '.' + 27-38 karakter")
-            sys.exit(1)
-        
-        logger.info(f"Token terbaca dengan panjang: {len(token)} karakter")
-        config['token'] = token  # Simpan token yang sudah di-strip
-            
-        # Validate required keys
-        missing_keys = [key for key in required_keys if key not in config]
-        if missing_keys:
-            raise KeyError(f"Missing required config keys: {', '.join(missing_keys)}")
-        
-        # Validate value types
-        for key in id_keys:
-            try:
-                config[key] = int(config[key])
-            except (ValueError, TypeError):
-                raise ValueError(f"Invalid value for {key}. Expected integer.")
-        
-        # Set default values
-        defaults = {
-            'cooldown_time': CommandCooldown.DEFAULT,
-            'max_items': Stock.MAX_ITEMS,
-            'cache_timeout': CACHE_TIMEOUT.get_seconds(CACHE_TIMEOUT.SHORT)
+class DiscordAPI:
+    def __init__(self, token):
+        self.token = token
+        self.base_url = "https://discord.com/api/v10"
+        self.session = None
+        self.headers = {
+            "Authorization": f"Bot {token}",
+            "Content-Type": "application/json"
         }
-        
-        for key, value in defaults.items():
-            if key not in config:
-                config[key] = value
-        
-        return config
-        
-    except FileNotFoundError:
-        logger.critical(f"Config file tidak ditemukan: {PATHS.CONFIG}")
-        logger.info("Silakan buat file config.json dengan pengaturan yang diperlukan")
-        sys.exit(1)
-    except json.JSONDecodeError as e:
-        logger.critical(f"Format JSON tidak valid dalam config file: {e}")
-        sys.exit(1)
-    except Exception as e:
-        logger.critical(f"Error saat loading config: {e}")
-        sys.exit(1)
+        self.cache = {}
+        self.is_ready = asyncio.Event()
 
-class StoreBot(commands.Bot):
-    def __init__(self):
-        # Setup intents dengan lebih lengkap
-        intents = discord.Intents.default()
-        intents.message_content = True
-        intents.members = True
-        intents.guilds = True
-        intents.presences = True
-        
-        logger.info("Initializing bot with required intents...")
-        
-        # Tambahkan timeout dan parameter koneksi yang lebih baik
-        super().__init__(
-            command_prefix='!',
-            intents=intents,
-            help_command=None,
-            heartbeat_timeout=60.0,
-            guild_ready_timeout=60.0,
-            gateway_queue_size=100,
-            max_messages=10000
+    async def start(self):
+        """Start API session"""
+        connector = aiohttp.TCPConnector(
+            force_close=True,
+            enable_cleanup_closed=True,
+            limit=100
         )
         
-        self.config = load_config()
-        self.cache_manager = CacheManager()
-        self.start_time = datetime.now(timezone.utc)
-        self.maintenance_mode = False
-        self._ready = asyncio.Event()
-        self.session = None
+        timeout = aiohttp.ClientTimeout(total=30)
         
-        # Connection management yang lebih robust
-        self._connection_retries = 0
-        self._max_retries = 5
-        self._gateway_connected = asyncio.Event()
-        self._reconnecting = False
-        self._last_reconnect = None
-
-    async def setup_hook(self):
-        """Setup bot extensions and database dengan penanganan koneksi yang lebih baik"""
-        try:
-            logger.info("Starting bot setup...")
-            
-            # Setup custom aiohttp session dengan konfigurasi yang lebih baik
-            connector = aiohttp.TCPConnector(
-                resolver=aiohttp.AsyncResolver(),
-                family=socket.AF_INET,  # Force IPv4
-                verify_ssl=True,
-                ttl_dns_cache=300,
-                limit=100,
-                force_close=True,
-                enable_cleanup_closed=True
-            )
-            
-            timeout = aiohttp.ClientTimeout(
-                total=30,
-                connect=10,
-                sock_read=30,
-                sock_connect=10
-            )
-            
-            self.session = aiohttp.ClientSession(
-                connector=connector,
-                timeout=timeout,
-                trust_env=True
-            )
-            
-            # Test Discord API connection dengan retry logic
-            logger.info("Testing Discord API connection...")
-            retry_count = 0
-            max_retries = 3
-            
-            while retry_count < max_retries:
-                try:
-                    async with self.session.get('https://discord.com/api/v10/gateway') as resp:
-                        if resp.status == 200:
-                            data = await resp.json()
-                            if 'url' in data:
-                                logger.info("Discord API connection successful")
-                                break
-                        else:
-                            logger.warning(f"Discord API returned status {resp.status}")
-                    retry_count += 1
-                    if retry_count < max_retries:
-                        await asyncio.sleep(5 * retry_count)
-                except Exception as e:
-                    logger.error(f"API connection attempt {retry_count + 1} failed: {e}")
-                    retry_count += 1
-                    if retry_count < max_retries:
-                        await asyncio.sleep(5 * retry_count)
-                    else:
-                        raise
-            
-            # Setup database
-            logger.info("Setting up database...")
-            setup_database()
-            
-            # Load core services dengan proper delay dan error handling
-            logger.info("Loading core services...")
-            for ext in EXTENSIONS.SERVICES:
-                try:
-                    logger.info(f"Loading service: {ext}")
-                    await self.load_extension(ext)
-                    logger.info(f"Successfully loaded service: {ext}")
-                    await asyncio.sleep(2)  # Increased delay between loads
-                except Exception as e:
-                    logger.critical(f"Failed to load critical service {ext}: {e}")
-                    await self.close()
-                    return
-
-            # Gateway connection dengan retry yang lebih baik
-            logger.info("Waiting for gateway connection...")
-            for attempt in range(self._max_retries):
-                try:
-                    if self.is_ready():
-                        logger.info("Gateway connection established")
-                        self._gateway_connected.set()
-                        break
-                    
-                    timeout = min(20 * (attempt + 1), 60)  # Longer timeouts: 20, 40, 60 seconds
-                    logger.info(f"Attempting gateway connection (attempt {attempt + 1}/{self._max_retries}, timeout: {timeout}s)")
-                    
-                    async with asyncio.timeout(timeout):
-                        await self.wait_until_ready()
-                    
-                    logger.info("Gateway connection successful")
-                    self._gateway_connected.set()
-                    break
-                    
-                except asyncio.TimeoutError:
-                    logger.warning(f"Gateway connection attempt {attempt + 1} timed out")
-                    if attempt < self._max_retries - 1:
-                        wait_time = 10 * (attempt + 1)  # Longer waits between attempts
-                        logger.info(f"Waiting {wait_time} seconds before next attempt...")
-                        await asyncio.sleep(wait_time)
-                except Exception as e:
-                    logger.error(f"Gateway connection error on attempt {attempt + 1}: {e}")
-                    if attempt < self._max_retries - 1:
-                        await asyncio.sleep(10 * (attempt + 1))
-                    else:
-                        raise
-
-            if not self._gateway_connected.is_set():
-                raise RuntimeError("Failed to establish gateway connection after maximum retries")
-
-            # Load remaining extensions
-            if self._gateway_connected.is_set():
-                await self._load_remaining_extensions()
-            else:
-                logger.critical("Cannot load remaining extensions: Gateway not connected")
-                await self.close()
-                return
-
-            logger.info("Bot setup completed successfully")
-            self._ready.set()
-
-        except Exception as e:
-            logger.critical(f"Fatal error during setup: {e}", exc_info=True)
-            await self.close()
-
-    async def _load_remaining_extensions(self):
-        """Load non-critical extensions"""
-        try:
-            # Load LiveStockCog
-            await self._load_live_stock_cog()
-            
-            # Load remaining features
-            logger.info("Loading remaining features...")
-            remaining_features = [e for e in EXTENSIONS.FEATURES if e not in ['ext.live_stock', 'ext.live_buttons']]
-            for ext in remaining_features:
-                try:
-                    await self.load_extension(ext)
-                    logger.info(f"Loaded feature: {ext}")
-                except Exception as e:
-                    logger.error(f"Failed to load feature {ext}: {e}")
-            
-            # Load optional cogs
-            logger.info("Loading optional cogs...")
-            for ext in EXTENSIONS.COGS:
-                try:
-                    await self.load_extension(ext)
-                    logger.info(f"Loaded optional cog: {ext}")
-                except Exception as e:
-                    logger.warning(f"Failed to load optional cog {ext}: {e}")
-                    
-        except Exception as e:
-            logger.error(f"Error loading remaining extensions: {e}")
-            raise
-
-    async def _load_live_stock_cog(self):
-        """Load LiveStockCog with validation"""
-        try:
-            stock_channel_id = self.config['id_live_stock']
-            channel = await self._verify_channel(stock_channel_id, "Stock")
-            
-            if not channel:
-                raise RuntimeError("Stock channel not found or inaccessible")
-                
-            await self.load_extension('ext.live_stock')
-            await asyncio.sleep(2)
-            
-            # Verify LiveStockCog
-            if not self.get_cog('LiveStockCog'):
-                raise RuntimeError("LiveStockCog failed to load properly")
-                
-            # Load LiveButtonsCog
-            await self.load_extension('ext.live_buttons')
-            if not self.get_cog('LiveButtonsCog'):
-                raise RuntimeError("LiveButtonsCog failed to load properly")
-                
-            logger.info("Successfully loaded stock management cogs")
-            
-        except Exception as e:
-            logger.critical(f"Failed to load stock management: {e}")
-            raise
-
-    async def _verify_channel(self, channel_id: int, channel_type: str):
-        """Verify channel exists and is accessible"""
-        retries = 3
-        for i in range(retries):
-            channel = self.get_channel(channel_id)
-            if channel:
-                logger.info(f"Found {channel_type} channel: {channel.name}")
-                return channel
-            logger.warning(f"{channel_type} channel not found, attempt {i+1}/{retries}")
-            await asyncio.sleep(2)
-        return None
-
-    async def on_ready(self):
-        try:
-            logger.info(f"Logged in as {self.user.name} ({self.user.id})")
-            logger.info(f"Discord.py Version: {discord.__version__}")
-            
-            # Validate channels
-            logger.info("Validating channels...")
-            for channel_id, channel_name in CHANNEL_CONFIG.items():
-                channel = self.get_channel(self.config[channel_id])
-                if not channel:
-                    logger.error(f"{channel_name} dengan ID {self.config[channel_id]} tidak ditemukan")
-                    await self.close()
-                    return
-                logger.info(f"Found {channel_name}: {channel.name}")
-            
-            # Set bot status
-            activity = discord.Activity(
-                type=discord.ActivityType.watching,
-                name="Growtopia Shop 🏪"
-            )
-            await self.change_presence(activity=activity)
-            
-            # Cleanup expired cache
-            await self.cache_manager.cleanup_expired()
-            
-            logger.info("Bot is fully ready!")
-            
-        except Exception as e:
-            logger.critical(f"Error in on_ready: {e}", exc_info=True)
-            await self.close()
-
-    async def on_error(self, event_method: str, *args, **kwargs):
-        """Global error handler"""
-        exc_type, exc_value, exc_traceback = sys.exc_info()
-        logger.error(f"Error in {event_method}: {exc_type.__name__}: {exc_value}")
-        logger.error("Full traceback:", exc_info=True)
+        self.session = aiohttp.ClientSession(
+            connector=connector,
+            timeout=timeout,
+            headers=self.headers
+        )
 
     async def close(self):
-        """Cleanup before closing"""
+        """Close API session"""
+        if self.session:
+            await self.session.close()
+
+    async def make_request(self, method: str, endpoint: str, **kwargs):
+        """Make API request with retries"""
+        url = f"{self.base_url}{endpoint}"
+        retries = 3
+        
+        for attempt in range(retries):
+            try:
+                async with getattr(self.session, method)(url, **kwargs) as resp:
+                    if resp.status in (200, 201, 204):
+                        if resp.status != 204:
+                            return await resp.json()
+                        return True
+                    elif resp.status == 429:  # Rate limit
+                        retry_after = (await resp.json()).get('retry_after', 5)
+                        await asyncio.sleep(retry_after)
+                        continue
+                    else:
+                        logger.error(f"Request failed: {resp.status}")
+                        return None
+            except Exception as e:
+                logger.error(f"Request error (attempt {attempt+1}): {e}")
+                if attempt == retries - 1:
+                    raise
+                await asyncio.sleep(1)
+
+class StoreBot:
+    def __init__(self):
+        self.config = self.load_config()
+        self.api = DiscordAPI(self.config["token"])
+        self.db = self.setup_database()
+        self.cache_manager = self.setup_cache()
+        self.cogs = {}
+        self.is_ready = asyncio.Event()
+        self.maintenance_mode = False
+        
+    def load_config(self):
+        """Load configuration"""
         try:
+            with open(PATHS.CONFIG, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                
+            required_keys = [
+                'token', 'guild_id', 'admin_id',
+                'id_live_stock', 'id_log_purch',
+                'id_donation_log', 'id_history_buy'
+            ]
+            
+            missing = [key for key in required_keys if key not in config]
+            if missing:
+                raise ValueError(f"Missing required config keys: {', '.join(missing)}")
+                
+            return config
+        except Exception as e:
+            logger.critical(f"Failed to load config: {e}")
+            raise
+
+    def setup_database(self):
+        """Setup database connection"""
+        try:
+            db = sqlite3.connect(PATHS.DATABASE)
+            db.row_factory = sqlite3.Row
+            logger.info("Database connected successfully")
+            return db
+        except Exception as e:
+            logger.critical(f"Database connection failed: {e}")
+            raise
+
+    def setup_cache(self):
+        """Setup cache manager"""
+        from ext.cache_manager import CacheManager
+        return CacheManager()
+
+    async def load_extension(self, name):
+        """Load a bot extension"""
+        try:
+            # Import the extension module
+            module = __import__(name, fromlist=['setup'])
+            
+            if hasattr(module, 'setup'):
+                await module.setup(self)
+                self.cogs[name] = module
+                logger.info(f"Loaded extension: {name}")
+            else:
+                logger.error(f"Extension {name} missing setup function")
+                
+        except Exception as e:
+            logger.error(f"Failed to load extension {name}: {e}")
+            raise
+
+    async def load_extensions(self):
+        """Load all extensions"""
+        for ext in EXTENSIONS.ALL:
+            try:
+                await self.load_extension(ext)
+            except Exception as e:
+                logger.error(f"Error loading {ext}: {e}")
+
+    async def start(self):
+        """Start the bot"""
+        try:
+            logger.info("Starting bot...")
+            await self.api.start()
+            
+            # Initialize services
+            logger.info("Loading extensions...")
+            await self.load_extensions()
+            
+            # Verify channels
+            channel_ids = [
+                self.config['id_live_stock'],
+                self.config['id_log_purch'],
+                self.config['id_donation_log'],
+                self.config['id_history_buy']
+            ]
+            
+            for channel_id in channel_ids:
+                channel = await self.api.make_request('get', f'/channels/{channel_id}')
+                if not channel:
+                    logger.error(f"Cannot find channel: {channel_id}")
+                    return False
+            
+            self.is_ready.set()
+            logger.info("Bot is ready!")
+            
+            # Keep the bot running
+            while True:
+                await asyncio.sleep(1)
+                
+        except KeyboardInterrupt:
+            logger.info("Shutting down...")
+        except Exception as e:
+            logger.critical(f"Fatal error: {e}")
+        finally:
+            await self.close()
+
+    async def close(self):
+        """Cleanup and close bot"""
+        try:
+            # Close API session
+            await self.api.close()
+            
+            # Close database
+            if hasattr(self, 'db'):
+                self.db.close()
+            
+            # Clear cache
             if hasattr(self, 'cache_manager'):
-                await self.cache_manager.cleanup_expired()
+                await self.cache_manager.clear()
             
-            if hasattr(self, 'session') and self.session:
-                await self.session.close()
-            
-            tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
-            for task in tasks[:100]:  # Limit to prevent hang
-                task.cancel()
-            
-            await asyncio.gather(*tasks[:100], return_exceptions=True)
-            await super().close()
+            # Unload extensions
+            for ext in self.cogs.copy():
+                try:
+                    module = self.cogs.pop(ext)
+                    if hasattr(module, 'teardown'):
+                        await module.teardown(self)
+                except Exception as e:
+                    logger.error(f"Error unloading {ext}: {e}")
+                    
+            logger.info("Cleanup complete")
             
         except Exception as e:
-            logger.error(f"Error during shutdown: {e}", exc_info=True)
-        finally:
-            logger.info("Bot shutdown complete")
+            logger.error(f"Error during cleanup: {e}")
 
-async def run_bot():
-    """Run the bot"""
-    logger.info("Initializing bot...")
-    bot = StoreBot()
+async def main():
+    """Main entry point"""
+    # Setup logging
+    log_dir = Path(PATHS.LOGS)
+    log_dir.mkdir(exist_ok=True)
+    
+    file_handler = logging.handlers.RotatingFileHandler(
+        log_dir / 'bot.log',
+        maxBytes=LOGGING.MAX_BYTES,
+        backupCount=LOGGING.BACKUP_COUNT,
+        encoding='utf-8'
+    )
+    file_handler.setFormatter(logging.Formatter(LOGGING.FORMAT))
+    logger.addHandler(file_handler)
     
     try:
-        logger.info("Starting bot...")
-        async with bot:
-            # Mencoba koneksi dengan token
-            try:
-                logger.info("Attempting to connect with token...")
-                await bot.start(bot.config['token'])
-            except discord.LoginFailure as e:
-                logger.critical(f"Login gagal - Token tidak valid: {str(e)}")
-                return
-            except discord.HTTPException as e:
-                logger.critical(f"HTTP Error saat koneksi: {str(e)}")
-                return
-            except Exception as e:
-                logger.critical(f"Error tidak terduga saat login: {str(e)}")
-                return
-            
-            # Menunggu bot siap dengan timeout
-            try:
-                logger.info("Waiting for bot to be ready...")
-                await asyncio.wait_for(bot._ready.wait(), timeout=60)
-                logger.info("Bot is ready and running!")
-            except asyncio.TimeoutError:
-                logger.critical("Bot gagal siap dalam waktu 60 detik")
-                await bot.close()
-                return
-                
+        # Create and start bot
+        bot = StoreBot()
+        await bot.start()
+        
     except KeyboardInterrupt:
-        logger.info("Menerima keyboard interrupt, menutup bot...")
+        logger.info("Shutting down by user request...")
     except Exception as e:
-        logger.critical(f"Bot crash dengan error: {e}", exc_info=True)
+        logger.critical(f"Fatal error: {e}", exc_info=True)
+        sys.exit(1)
     finally:
-        if not bot.is_closed():
-            logger.info("Menutup koneksi bot...")
+        if 'bot' in locals():
             await bot.close()
 
 if __name__ == "__main__":
     try:
-        # Set waktu mulai
+        # Record start time
         start_time = datetime.now(timezone.utc)
         logger.info(f"Starting bot at {start_time.strftime('%Y-%m-%d %H:%M:%S UTC')}")
         
-        # Jalankan bot
-        asyncio.run(run_bot())
+        # Run bot
+        asyncio.run(main())
         
-        # Hitung durasi running
+        # Calculate runtime
         end_time = datetime.now(timezone.utc)
-        duration = end_time - start_time
-        logger.info(f"Bot stopped after running for {duration}")
+        runtime = end_time - start_time
+        logger.info(f"Bot stopped after running for {runtime}")
         
     except KeyboardInterrupt:
-        logger.info("Program dihentikan oleh user")
+        logger.info("Program terminated by user")
     except Exception as e:
         logger.critical(f"Fatal error: {e}", exc_info=True)
         sys.exit(1)
