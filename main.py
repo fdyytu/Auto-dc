@@ -3,7 +3,7 @@
 Discord Bot for Store DC
 Author: fdyytu
 Created at: 2025-03-07 18:30:16 UTC
-Last Modified: 2025-03-10 14:27:45 UTC
+Last Modified: 2025-03-10 17:02:28 UTC
 """
 
 import sys
@@ -25,6 +25,7 @@ import sqlite3
 from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
 import re
+import socket
 
 # Import constants first
 from ext.constants import (
@@ -223,18 +224,24 @@ def load_config():
 
 class StoreBot(commands.Bot):
     def __init__(self):
-        # Setup intents
+        # Setup intents dengan lebih lengkap
         intents = discord.Intents.default()
         intents.message_content = True
         intents.members = True
-        intents.guilds = True  # Tambahan untuk akses guild
+        intents.guilds = True
+        intents.presences = True
         
         logger.info("Initializing bot with required intents...")
         
+        # Tambahkan timeout dan parameter koneksi yang lebih baik
         super().__init__(
             command_prefix='!',
             intents=intents,
-            help_command=None
+            help_command=None,
+            heartbeat_timeout=60.0,
+            guild_ready_timeout=60.0,
+            gateway_queue_size=100,
+            max_messages=10000
         )
         
         self.config = load_config()
@@ -242,75 +249,121 @@ class StoreBot(commands.Bot):
         self.start_time = datetime.now(timezone.utc)
         self.maintenance_mode = False
         self._ready = asyncio.Event()
+        self.session = None
         
-        # Tambahan untuk status koneksi
+        # Connection management yang lebih robust
         self._connection_retries = 0
         self._max_retries = 5
         self._gateway_connected = asyncio.Event()
+        self._reconnecting = False
+        self._last_reconnect = None
 
     async def setup_hook(self):
-        """Setup bot extensions and database"""
+        """Setup bot extensions and database dengan penanganan koneksi yang lebih baik"""
         try:
             logger.info("Starting bot setup...")
             
-            # Setup database first
+            # Setup custom aiohttp session dengan konfigurasi yang lebih baik
+            connector = aiohttp.TCPConnector(
+                resolver=aiohttp.AsyncResolver(),
+                family=socket.AF_INET,  # Force IPv4
+                verify_ssl=True,
+                ttl_dns_cache=300,
+                limit=100,
+                force_close=True,
+                enable_cleanup_closed=True
+            )
+            
+            timeout = aiohttp.ClientTimeout(
+                total=30,
+                connect=10,
+                sock_read=30,
+                sock_connect=10
+            )
+            
+            self.session = aiohttp.ClientSession(
+                connector=connector,
+                timeout=timeout,
+                trust_env=True
+            )
+            
+            # Test Discord API connection dengan retry logic
+            logger.info("Testing Discord API connection...")
+            retry_count = 0
+            max_retries = 3
+            
+            while retry_count < max_retries:
+                try:
+                    async with self.session.get('https://discord.com/api/v10/gateway') as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            if 'url' in data:
+                                logger.info("Discord API connection successful")
+                                break
+                        else:
+                            logger.warning(f"Discord API returned status {resp.status}")
+                    retry_count += 1
+                    if retry_count < max_retries:
+                        await asyncio.sleep(5 * retry_count)
+                except Exception as e:
+                    logger.error(f"API connection attempt {retry_count + 1} failed: {e}")
+                    retry_count += 1
+                    if retry_count < max_retries:
+                        await asyncio.sleep(5 * retry_count)
+                    else:
+                        raise
+            
+            # Setup database
             logger.info("Setting up database...")
             setup_database()
             
-            # Check Discord connection first
-            logger.info("Checking Discord connection...")
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get('https://discord.com/api/v10/gateway') as resp:
-                        if resp.status != 200:
-                            raise ConnectionError(f"Discord API returned status {resp.status}")
-                        logger.info("Discord API connection successful")
-            except Exception as e:
-                logger.critical(f"Cannot connect to Discord API: {e}")
-                return
-            
-            # Load core services
+            # Load core services dengan proper delay dan error handling
             logger.info("Loading core services...")
             for ext in EXTENSIONS.SERVICES:
                 try:
                     logger.info(f"Loading service: {ext}")
                     await self.load_extension(ext)
                     logger.info(f"Successfully loaded service: {ext}")
-                    await asyncio.sleep(1)  # Reduced sleep time
+                    await asyncio.sleep(2)  # Increased delay between loads
                 except Exception as e:
                     logger.critical(f"Failed to load critical service {ext}: {e}")
                     await self.close()
                     return
 
-            # Modified gateway connection check with progressive timeout
+            # Gateway connection dengan retry yang lebih baik
             logger.info("Waiting for gateway connection...")
-            try:
-                for attempt in range(self._max_retries):
+            for attempt in range(self._max_retries):
+                try:
                     if self.is_ready():
-                        logger.info("Gateway connection already established")
-                        self._gateway_connected.set()
-                        break
-                        
-                    try:
-                        timeout = min(10 * (attempt + 1), 30)  # Progressive timeout: 10, 20, 30 seconds
-                        logger.info(f"Attempting gateway connection (attempt {attempt + 1}/{self._max_retries}, timeout: {timeout}s)")
-                        await asyncio.wait_for(self.wait_until_ready(), timeout=timeout)
                         logger.info("Gateway connection established")
                         self._gateway_connected.set()
                         break
-                    except asyncio.TimeoutError:
-                        logger.warning(f"Gateway connection attempt {attempt + 1} timed out")
-                        if attempt < self._max_retries - 1:
-                            wait_time = 5 * (attempt + 1)
-                            logger.info(f"Waiting {wait_time} seconds before next attempt...")
-                            await asyncio.sleep(wait_time)
-                else:
-                    raise RuntimeError("Failed to establish gateway connection after maximum retries")
+                    
+                    timeout = min(20 * (attempt + 1), 60)  # Longer timeouts: 20, 40, 60 seconds
+                    logger.info(f"Attempting gateway connection (attempt {attempt + 1}/{self._max_retries}, timeout: {timeout}s)")
+                    
+                    async with asyncio.timeout(timeout):
+                        await self.wait_until_ready()
+                    
+                    logger.info("Gateway connection successful")
+                    self._gateway_connected.set()
+                    break
+                    
+                except asyncio.TimeoutError:
+                    logger.warning(f"Gateway connection attempt {attempt + 1} timed out")
+                    if attempt < self._max_retries - 1:
+                        wait_time = 10 * (attempt + 1)  # Longer waits between attempts
+                        logger.info(f"Waiting {wait_time} seconds before next attempt...")
+                        await asyncio.sleep(wait_time)
+                except Exception as e:
+                    logger.error(f"Gateway connection error on attempt {attempt + 1}: {e}")
+                    if attempt < self._max_retries - 1:
+                        await asyncio.sleep(10 * (attempt + 1))
+                    else:
+                        raise
 
-            except Exception as e:
-                logger.critical(f"Gateway connection error: {e}")
-                await self.close()
-                return
+            if not self._gateway_connected.is_set():
+                raise RuntimeError("Failed to establish gateway connection after maximum retries")
 
             # Load remaining extensions
             if self._gateway_connected.is_set():
@@ -438,8 +491,11 @@ class StoreBot(commands.Bot):
             if hasattr(self, 'cache_manager'):
                 await self.cache_manager.cleanup_expired()
             
+            if hasattr(self, 'session') and self.session:
+                await self.session.close()
+            
             tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
-            for task in tasks[:100]:
+            for task in tasks[:100]:  # Limit to prevent hang
                 task.cancel()
             
             await asyncio.gather(*tasks[:100], return_exceptions=True)
