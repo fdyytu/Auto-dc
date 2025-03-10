@@ -804,28 +804,22 @@ class LiveButtonManager(BaseLockHandler):
             cls._instance.initialized = False
         return cls._instance
 
-class LiveButtonManager(BaseLockHandler):
-    _instance = None
-    _instance_lock = asyncio.Lock()
-
-    def __new__(cls, bot):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance.initialized = False
-        return cls._instance
-
     def __init__(self, bot):
         if not self.initialized:
-            BaseLockHandler.__init__(self)  # Ganti ini
+            if not isinstance(bot, commands.Bot):
+                raise TypeError("bot must be instance of commands.Bot")
+            BaseLockHandler.__init__(self)
             self.bot = bot
             self.logger = logging.getLogger("LiveButtonManager")
+            self.logger.info("Initializing LiveButtonManager...")
             self.cache_manager = CacheManager()
             self.admin_service = AdminService(bot)
             self.stock_channel_id = int(self.bot.config.get('id_live_stock', 0))
+            self.logger.info(f"Stock channel ID: {self.stock_channel_id}")
             self.current_message: Optional[discord.Message] = None
             self.stock_manager = None
             self.initialized = True
-        self.logger.info("LiveButtonManager initialized")  # Debug log
+            self.logger.info("LiveButtonManager initialized")
 
     def create_view(self):
         """Membuat view dengan button-button"""
@@ -1019,6 +1013,7 @@ class LiveButtonManager(BaseLockHandler):
         except Exception as e:
             self.logger.error(f"Error in cleanup: {e}")
 
+
 class LiveButtonsCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -1029,43 +1024,43 @@ class LiveButtonsCog(commands.Cog):
         self._initialization_lock = asyncio.Lock()
         self.logger.info("LiveButtonsCog initialized")
 
-async def wait_for_stock_manager(self, timeout=15) -> bool:
-    """Wait for stock manager to be available"""
-    try:
-        start_time = datetime.utcnow()
-        retries = 0
-        max_retries = 5
-        
-        while (datetime.utcnow() - start_time).total_seconds() < timeout:
-            stock_cog = self.bot.get_cog('LiveStockCog')
-            retries += 1
+    async def wait_for_stock_manager(self, timeout=15) -> bool:
+        """Wait for stock manager to be available"""
+        try:
+            start_time = datetime.utcnow()
+            retries = 0
+            max_retries = 5
             
-            self.logger.info(f"Attempt {retries}/{max_retries} to get StockManager")
-            
-            if stock_cog and hasattr(stock_cog, 'stock_manager'):
-                self.stock_manager = stock_cog.stock_manager
-                if self.stock_manager:
-                    self.logger.info(f"StockManager found after {retries} attempts")
-                    # Tambahan verifikasi
-                    if hasattr(self.stock_manager, 'initialized') and self.stock_manager.initialized:
-                        self.logger.info("StockManager is fully initialized")
-                        return True
-                    else:
-                        self.logger.warning("StockManager found but not fully initialized")
-            
-            if retries >= max_retries:
-                self.logger.error("Max retries reached waiting for StockManager")
-                return False
+            while (datetime.utcnow() - start_time).total_seconds() < timeout:
+                stock_cog = self.bot.get_cog('LiveStockCog')
+                retries += 1
                 
-            self.logger.info(f"Waiting 3 seconds before next attempt...")
-            await asyncio.sleep(3)
+                self.logger.info(f"Attempt {retries}/{max_retries} to get StockManager")
+                
+                if stock_cog and hasattr(stock_cog, 'stock_manager'):
+                    self.stock_manager = stock_cog.stock_manager
+                    if self.stock_manager:
+                        self.logger.info(f"StockManager found after {retries} attempts")
+                        # Tambahan verifikasi
+                        if hasattr(self.stock_manager, 'initialized') and self.stock_manager.initialized:
+                            self.logger.info("StockManager is fully initialized")
+                            return True
+                        else:
+                            self.logger.warning("StockManager found but not fully initialized")
+                
+                if retries >= max_retries:
+                    self.logger.error("Max retries reached waiting for StockManager")
+                    return False
+                    
+                self.logger.info(f"Waiting 3 seconds before next attempt...")
+                await asyncio.sleep(3)
+                
+            self.logger.error(f"StockManager wait timeout after {timeout} seconds")
+            return False
             
-        self.logger.error(f"StockManager wait timeout after {timeout} seconds")
-        return False
-        
-    except Exception as e:
-        self.logger.error(f"Error waiting for stock manager: {e}", exc_info=True)
-        return False
+        except Exception as e:
+            self.logger.error(f"Error waiting for stock manager: {e}", exc_info=True)
+            return False
 
     async def initialize_dependencies(self) -> bool:
         """Initialize all dependencies"""
@@ -1096,23 +1091,23 @@ async def wait_for_stock_manager(self, timeout=15) -> bool:
         try:
             self.logger.info("LiveButtonsCog loading...")
             await self.bot.wait_until_ready()
-    
+
             # Initialize dependencies dengan timeout
             async with asyncio.timeout(30):  # 30 detik timeout
                 if not await self.initialize_dependencies():
                     raise RuntimeError("Failed to initialize dependencies")
-    
+
             # Start background task SETELAH dependencies siap
             self.check_display.start()
             self.logger.info("LiveButtonsCog loaded and started successfully")
-    
+
         except asyncio.TimeoutError:
             self.logger.error("Initialization timed out")
             raise
         except Exception as e:
             self.logger.error(f"Error in cog_load: {e}")
             raise
-    
+
     def cog_unload(self):
         """Cleanup when cog is unloaded"""
         try:
@@ -1165,6 +1160,7 @@ async def wait_for_stock_manager(self, timeout=15) -> bool:
         await self.bot.wait_until_ready()
         await self._ready.wait()
 
+
 async def setup(bot):
     """Setup LiveButtonsCog dengan proper error handling"""
     if not hasattr(bot, COG_LOADED['LIVE_BUTTONS']):
@@ -1209,32 +1205,11 @@ async def setup(bot):
         except Exception as e:
             logging.error(f"Failed to load LiveButtonsCog: {e}", exc_info=True)
             if hasattr(bot, COG_LOADED['LIVE_BUTTONS']):
-                delattr(bot, COG_LOADED['LIVE_BUTTONS'])
+            delattr(bot, COG_LOADED['LIVE_BUTTONS'])
             if bot.get_cog('LiveButtonsCog'):
                 await bot.remove_cog('LiveButtonsCog')
             raise
 
-            # Create and add cog
-            cog = LiveButtonsCog(bot)
-            await bot.add_cog(cog)
-            
-            # Wait for initialization
-            try:
-                async with asyncio.timeout(30):  # 30 second timeout
-                    await cog._ready.wait()
-            except asyncio.TimeoutError:
-                await bot.remove_cog('LiveButtonsCog')
-                raise RuntimeError("LiveButtonsCog initialization timed out")
-            
-            # Set loaded flag
-            setattr(bot, COG_LOADED['LIVE_BUTTONS'], True)
-            logging.info("LiveButtons cog loaded successfully")
-            
-        except Exception as e:
-            logging.error(f"Failed to load LiveButtonsCog: {e}")
-            if hasattr(bot, COG_LOADED['LIVE_BUTTONS']):
-                delattr(bot, COG_LOADED['LIVE_BUTTONS'])
-            raise
 
 async def teardown(bot):
     """Clean up resources when unloading the cog"""
