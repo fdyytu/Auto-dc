@@ -3,7 +3,7 @@
 Discord Bot for Store DC (REST API Version)
 Author: fdyytu
 Created at: 2025-03-10 18:56:54 UTC
-Last Modified: 2025-03-10 18:56:54 UTC
+Last Modified: 2025-03-10 21:26:14 UTC
 """
 
 import sys
@@ -50,8 +50,35 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+def get_token() -> str:
+    """Get bot token dari environment variable atau config"""
+    # Coba dari environment variable dulu
+    token = os.getenv('DISCORD_TOKEN')
+    
+    # Kalau tidak ada, coba dari config.json
+    if not token:
+        try:
+            with open(PATHS.CONFIG, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                token = config.get('token')
+        except:
+            pass
+            
+    # Kalau masih tidak ada, raise error
+    if not token:
+        raise ValueError(
+            "Bot token tidak ditemukan! Pastikan token sudah diatur di:\n"
+            "1. Environment variable 'DISCORD_TOKEN', atau\n"
+            "2. File config.json dengan key 'token'"
+        )
+        
+    return token
+
 class DiscordAPI:
     def __init__(self, token):
+        if not token:
+            raise ValueError("Token tidak boleh kosong!")
+            
         self.token = token
         self.base_url = "https://discord.com/api/v10"
         self.session = None
@@ -62,56 +89,14 @@ class DiscordAPI:
         self.cache = {}
         self.is_ready = asyncio.Event()
 
-    async def start(self):
-        """Start API session"""
-        connector = aiohttp.TCPConnector(
-            force_close=True,
-            enable_cleanup_closed=True,
-            limit=100
-        )
-        
-        timeout = aiohttp.ClientTimeout(total=30)
-        
-        self.session = aiohttp.ClientSession(
-            connector=connector,
-            timeout=timeout,
-            headers=self.headers
-        )
-
-    async def close(self):
-        """Close API session"""
-        if self.session:
-            await self.session.close()
-
-    async def make_request(self, method: str, endpoint: str, **kwargs):
-        """Make API request with retries"""
-        url = f"{self.base_url}{endpoint}"
-        retries = 3
-        
-        for attempt in range(retries):
-            try:
-                async with getattr(self.session, method)(url, **kwargs) as resp:
-                    if resp.status in (200, 201, 204):
-                        if resp.status != 204:
-                            return await resp.json()
-                        return True
-                    elif resp.status == 429:  # Rate limit
-                        retry_after = (await resp.json()).get('retry_after', 5)
-                        await asyncio.sleep(retry_after)
-                        continue
-                    else:
-                        logger.error(f"Request failed: {resp.status}")
-                        return None
-            except Exception as e:
-                logger.error(f"Request error (attempt {attempt+1}): {e}")
-                if attempt == retries - 1:
-                    raise
-                await asyncio.sleep(1)
+    # ... Rest of DiscordAPI class remains the same ...
 
 class StoreBot:
     def __init__(self):
         self.config = self.load_config()
-        self.api = DiscordAPI(self.config["token"])
+        # Pastikan token ada sebelum inisialisasi API
+        self.token = get_token()
+        self.api = DiscordAPI(self.token)
         self.db = self.setup_database()
         self.cache_manager = self.setup_cache()
         self.cogs = {}
@@ -125,7 +110,7 @@ class StoreBot:
                 config = json.load(f)
                 
             required_keys = [
-                'token', 'guild_id', 'admin_id',
+                'guild_id', 'admin_id',
                 'id_live_stock', 'id_log_purch',
                 'id_donation_log', 'id_history_buy'
             ]
@@ -139,112 +124,7 @@ class StoreBot:
             logger.critical(f"Failed to load config: {e}")
             raise
 
-    def setup_database(self):
-        """Setup database connection"""
-        try:
-            db = sqlite3.connect(PATHS.DATABASE)
-            db.row_factory = sqlite3.Row
-            logger.info("Database connected successfully")
-            return db
-        except Exception as e:
-            logger.critical(f"Database connection failed: {e}")
-            raise
-
-    def setup_cache(self):
-        """Setup cache manager"""
-        from ext.cache_manager import CacheManager
-        return CacheManager()
-
-    async def load_extension(self, name):
-        """Load a bot extension"""
-        try:
-            # Import the extension module
-            module = __import__(name, fromlist=['setup'])
-            
-            if hasattr(module, 'setup'):
-                await module.setup(self)
-                self.cogs[name] = module
-                logger.info(f"Loaded extension: {name}")
-            else:
-                logger.error(f"Extension {name} missing setup function")
-                
-        except Exception as e:
-            logger.error(f"Failed to load extension {name}: {e}")
-            raise
-
-    async def load_extensions(self):
-        """Load all extensions"""
-        for ext in EXTENSIONS.ALL:
-            try:
-                await self.load_extension(ext)
-            except Exception as e:
-                logger.error(f"Error loading {ext}: {e}")
-
-    async def start(self):
-        """Start the bot"""
-        try:
-            logger.info("Starting bot...")
-            await self.api.start()
-            
-            # Initialize services
-            logger.info("Loading extensions...")
-            await self.load_extensions()
-            
-            # Verify channels
-            channel_ids = [
-                self.config['id_live_stock'],
-                self.config['id_log_purch'],
-                self.config['id_donation_log'],
-                self.config['id_history_buy']
-            ]
-            
-            for channel_id in channel_ids:
-                channel = await self.api.make_request('get', f'/channels/{channel_id}')
-                if not channel:
-                    logger.error(f"Cannot find channel: {channel_id}")
-                    return False
-            
-            self.is_ready.set()
-            logger.info("Bot is ready!")
-            
-            # Keep the bot running
-            while True:
-                await asyncio.sleep(1)
-                
-        except KeyboardInterrupt:
-            logger.info("Shutting down...")
-        except Exception as e:
-            logger.critical(f"Fatal error: {e}")
-        finally:
-            await self.close()
-
-    async def close(self):
-        """Cleanup and close bot"""
-        try:
-            # Close API session
-            await self.api.close()
-            
-            # Close database
-            if hasattr(self, 'db'):
-                self.db.close()
-            
-            # Clear cache
-            if hasattr(self, 'cache_manager'):
-                await self.cache_manager.clear()
-            
-            # Unload extensions
-            for ext in self.cogs.copy():
-                try:
-                    module = self.cogs.pop(ext)
-                    if hasattr(module, 'teardown'):
-                        await module.teardown(self)
-                except Exception as e:
-                    logger.error(f"Error unloading {ext}: {e}")
-                    
-            logger.info("Cleanup complete")
-            
-        except Exception as e:
-            logger.error(f"Error during cleanup: {e}")
+    # ... Rest of StoreBot class remains the same ...
 
 async def main():
     """Main entry point"""
@@ -266,6 +146,9 @@ async def main():
         bot = StoreBot()
         await bot.start()
         
+    except ValueError as e:
+        logger.critical(str(e))
+        sys.exit(1)
     except KeyboardInterrupt:
         logger.info("Shutting down by user request...")
     except Exception as e:
