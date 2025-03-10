@@ -1205,7 +1205,7 @@ async def setup(bot):
         except Exception as e:
             logging.error(f"Failed to load LiveButtonsCog: {e}", exc_info=True)
             if hasattr(bot, COG_LOADED['LIVE_BUTTONS']):
-            delattr(bot, COG_LOADED['LIVE_BUTTONS'])
+                delattr(bot, COG_LOADED['LIVE_BUTTONS'])
             if bot.get_cog('LiveButtonsCog'):
                 await bot.remove_cog('LiveButtonsCog')
             raise
