@@ -1,17 +1,17 @@
 import sys
 import os
 import discord
-import sqlite3
-from discord.ext import commands
-import asyncio
 import logging
 import logging.config
-from configparser import ConfigParser
+import json
+from discord.ext import commands
+from ext.constants import PATHS, EXTENSIONS
+from database import setup_database, verify_database
 
-# Fungsi untuk memuat konfigurasi dari file config.txt
+# Fungsi untuk memuat konfigurasi dari file config.json
 def load_config(file_name):
-    config = ConfigParser()
-    config.read(file_name)
+    with open(file_name, 'r') as file:
+        config = json.load(file)
     return config
 
 logging.config.dictConfig({
@@ -38,8 +38,8 @@ logging.config.dictConfig({
 
 logger = logging.getLogger(__name__)
 
-# Membaca konfigurasi dari file config.txt dengan validasi
-config = load_config('config.txt')
+# Membaca konfigurasi dari file config.json dengan validasi
+config = load_config(PATHS.CONFIG)
 logger.debug("Konfigurasi telah dibaca")
 
 # Inisialisasi intents
@@ -49,40 +49,22 @@ intents.message_content = True
 intents.guilds = True
 logger.debug("Intents telah diinisialisasi")
 
-# Definisi kelas Database
-class Database:
-    def __init__(self, db_path):
-        self.conn = sqlite3.connect(db_path)
-        self.cursor = self.conn.cursor()
-
-db = None
-
-# Koneksi ke database
+# Setup dan verifikasi database
 try:
-    db_path = config.get('DEFAULT', 'LINK_DATABASE')
-    if not db_path:
-        logger.error("LINK_DATABASE tidak ditemukan dalam konfigurasi")
-        print("LINK_DATABASE tidak ditemukan dalam konfigurasi")
-    else:
-        db = Database(db_path)
-        logger.debug("Koneksi ke database telah berhasil")
+    setup_database()
+    if not verify_database():
+        raise Exception("Database verification failed")
 except Exception as e:
-    logger.error(f'Failed to connect to the database: {type(e).__name__} - {e}')
-    print(f'Failed to connect to the database: {type(e).__name__} - {e}')
-    raise
+    logger.error(f'Failed to setup or verify the database: {type(e).__name__} - {e}')
+    sys.exit(1)
 
 # Inisialisasi bot
 bot = commands.Bot(command_prefix='!', intents=intents)
-bot.owner_id = int(config.get('DEFAULT', 'OWNER_ID'))
+bot.owner_id = int(config.get('admin_id'))
 logger.debug("Bot telah diinisialisasi")
 
 # Memuat cogs
-initial_extensions = [
-    'cog.admin',
-    'cog.live',
-    'cog.owner',
-    'cog.donation'
-]
+initial_extensions = EXTENSIONS.ALL
 
 @bot.event
 async def on_ready():
@@ -115,10 +97,11 @@ async def main():
 
     # Menjalankan bot
     try:
-        await bot.start(config.get('DEFAULT', 'DISCORD_TOKEN'))
+        await bot.start(config.get('token'))
     except Exception as e:
         logger.error(f'Failed to start bot: {type(e).__name__} - {e}')
         print(f'Failed to start bot: {type(e).__name__} - {e}')
 
 if __name__ == '__main__':
+    import asyncio
     asyncio.run(main())
