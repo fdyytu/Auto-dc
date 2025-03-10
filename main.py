@@ -3,7 +3,7 @@
 Discord Bot for Store DC
 Author: fdyytu
 Created at: 2025-03-07 18:30:16 UTC
-Last Modified: 2025-03-10 13:04:33 UTC
+Last Modified: 2025-03-10 13:28:59 UTC
 """
 
 import sys
@@ -200,26 +200,51 @@ class StoreBot(commands.Bot):
                     logger.info(f"Loading service: {ext}")
                     await self.load_extension(ext)
                     logger.info(f"Successfully loaded service: {ext}")
-                    await asyncio.sleep(2)  # Increased delay between service loads
+                    await asyncio.sleep(2)
                 except Exception as e:
                     logger.critical(f"Failed to load critical service {ext}: {e}")
                     await self.close()
                     return
 
-            # Load LiveStockCog first with proper channel validation
+            # Wait for gateway connection before loading stock cog
+            logger.info("Waiting for gateway connection...")
+            try:
+                await asyncio.sleep(5)  # Give time for initial connection
+                if not self.is_ready():
+                    await asyncio.wait_for(self.wait_until_ready(), timeout=30)
+                logger.info("Gateway connection established")
+            except asyncio.TimeoutError:
+                logger.critical("Failed to connect to Discord gateway")
+                await self.close()
+                return
+
+            # Load LiveStockCog with channel validation
             logger.info("Loading LiveStockCog...")
             try:
-                # Validate stock channel first
                 stock_channel_id = self.config['id_live_stock']
-                await asyncio.sleep(2)  # Wait for gateway connection
                 
-                if not self.get_channel(stock_channel_id):
-                    logger.error(f"Stock channel with ID {stock_channel_id} not found")
+                # Verify channel exists and is accessible
+                retries = 3
+                channel = None
+                
+                for i in range(retries):
+                    channel = self.get_channel(stock_channel_id)
+                    if channel:
+                        break
+                    logger.warning(f"Channel not found, attempt {i+1}/{retries}")
+                    await asyncio.sleep(2)
+                
+                if not channel:
+                    logger.error(f"Stock channel with ID {stock_channel_id} not found after {retries} attempts")
+                    logger.info("Available channels:")
+                    for ch in self.get_all_channels():
+                        logger.info(f"- {ch.name} (ID: {ch.id})")
                     raise RuntimeError("Stock channel not found")
                     
+                logger.info(f"Found stock channel: {channel.name}")
                 await self.load_extension('ext.live_stock')
-                await asyncio.sleep(5)  # Give time for LiveStockCog to initialize
-                
+                await asyncio.sleep(5)
+
                 # Verify LiveStockCog loaded properly
                 stock_cog = self.get_cog('LiveStockCog')
                 if not stock_cog or not hasattr(stock_cog, 'stock_manager'):
@@ -241,7 +266,6 @@ class StoreBot(commands.Bot):
                     logger.info("Successfully loaded LiveButtonsCog")
                 except Exception as e:
                     logger.error(f"Failed to load LiveButtonsCog: {e}")
-                    # Continue loading other extensions even if this fails
 
             except Exception as e:
                 logger.critical(f"Failed to load LiveStockCog: {e}")
