@@ -1,107 +1,101 @@
+"""
+Auto-DC Bot Main File
+Author: fdyytu
+Created at: 2025-03-07 18:04:56 UTC
+Last Modified: 2025-03-10 22:30:07 UTC
+"""
+
 import sys
 import os
 import discord
 import logging
-import logging.config
-import json
+import traceback
 from discord.ext import commands
-from ext.constants import PATHS, EXTENSIONS
-from database import setup_database, verify_database
+from pathlib import Path
 
-# Fungsi untuk memuat konfigurasi dari file config.json
-def load_config(file_name):
-    with open(file_name, 'r') as file:
-        config = json.load(file)
-    return config
+print("Starting bot initialization...")  # Debug output
 
-logging.config.dictConfig({
-    'version': 1,
-    'formatters': {
-        'default': {
-            'format': '[%(asctime)s] %(levelname)s: %(message)s'
-        }
-    },
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-            'level': 'INFO',
-            'formatter': 'default'
-        }
-    },
-    'loggers': {
-        __name__: {
-            'level': 'INFO',
-            'handlers': ['console']
-        }
-    }
-})
-
-logger = logging.getLogger(__name__)
-
-# Membaca konfigurasi dari file config.json dengan validasi
-config = load_config(PATHS.CONFIG)
-logger.debug("Konfigurasi telah dibaca")
-
-# Inisialisasi intents
-intents = discord.Intents.default()
-intents.messages = True
-intents.message_content = True
-intents.guilds = True
-logger.debug("Intents telah diinisialisasi")
-
-# Setup dan verifikasi database
+# Buat direktori logs jika belum ada
 try:
-    setup_database()
-    if not verify_database():
-        raise Exception("Database verification failed")
+    Path("logs").mkdir(exist_ok=True)
+    print("Logs directory checked")  # Debug output
 except Exception as e:
-    logger.error(f'Failed to setup or verify the database: {type(e).__name__} - {e}')
+    print(f"Error creating logs directory: {e}")
+
+# Setup basic logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='[%(asctime)s] %(levelname)s: %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('logs/bot.log', encoding='utf-8')
+    ]
+)
+
+print("Logging setup complete")  # Debug output
+
+# Load config
+try:
+    config_path = "config/config.json"
+    print(f"Attempting to load config from: {config_path}")  # Debug output
+    
+    if not os.path.exists(config_path):
+        print(f"Config file not found at {config_path}")
+        sys.exit(1)
+        
+    with open(config_path, 'r') as f:
+        config = json.load(f)
+    print("Config loaded successfully")  # Debug output
+except Exception as e:
+    print(f"Error loading config: {e}")
+    traceback.print_exc()
     sys.exit(1)
 
-# Inisialisasi bot
-bot = commands.Bot(command_prefix='!', intents=intents)
-bot.owner_id = int(config.get('admin_id'))
-logger.debug("Bot telah diinisialisasi")
+# Bot setup
+class Bot(commands.Bot):
+    def __init__(self):
+        print("Initializing bot...")  # Debug output
+        intents = discord.Intents.default()
+        intents.message_content = True
+        intents.members = True
+        
+        super().__init__(
+            command_prefix=config.get('prefix', '!'),
+            intents=intents
+        )
+        print("Bot initialized")  # Debug output
 
-# Memuat cogs
-initial_extensions = EXTENSIONS.ALL
+    async def setup_hook(self):
+        print("Setting up bot...")  # Debug output
+        for ext in ['cogs.admin', 'cogs.utils']:
+            try:
+                await self.load_extension(ext)
+                print(f"Loaded extension: {ext}")  # Debug output
+            except Exception as e:
+                print(f"Failed to load extension {ext}: {e}")
+                traceback.print_exc()
 
-@bot.event
-async def on_ready():
-    logger.info(f'Bot is ready. Logged in as {bot.user.name} ({bot.user.id})')
-    print(f'Logged in as {bot.user.name} ({bot.user.id})')
-    print('------')
-
-@bot.event
-async def on_command_error(ctx, error):
-    logger.error(f'Error in command {ctx.command}: {type(error).__name__} - {error}')
-    if isinstance(error, commands.CommandNotFound):
-        await ctx.send('Command not found.')
-    elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send('Missing required argument.')
-    elif isinstance(error, commands.BadArgument):
-        await ctx.send('Bad argument.')
-    else:
-        await ctx.send('An error occurred while executing the command.')
+    async def on_ready(self):
+        print(f"Bot is ready. Logged in as {self.user}")
 
 async def main():
-    # Memuat extensions
-    for extension in initial_extensions:
-        try:
-            await bot.load_extension(extension)
-            logger.info(f'Loaded extension: {extension}')
-            print(f'Loaded extension: {extension}')
-        except Exception as e:
-            logger.error(f'Failed to load extension {extension}: {type(e).__name__} - {e}')
-            print(f'Failed to load extension {extension}: {type(e).__name__} - {e}')
-
-    # Menjalankan bot
     try:
-        await bot.start(config.get('token'))
+        print("Starting main...")  # Debug output
+        bot = Bot()
+        async with bot:
+            print("Attempting to start bot...")  # Debug output
+            await bot.start(config['token'])
+    except KeyboardInterrupt:
+        print("Bot stopped by user")
     except Exception as e:
-        logger.error(f'Failed to start bot: {type(e).__name__} - {e}')
-        print(f'Failed to start bot: {type(e).__name__} - {e}')
+        print(f"Error running bot: {e}")
+        traceback.print_exc()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
+    print("Script started")  # Debug output
     import asyncio
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except Exception as e:
+        print(f"Fatal error: {e}")
+        traceback.print_exc()
