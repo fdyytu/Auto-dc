@@ -176,8 +176,10 @@ class EXTENSIONS:
         'cogs.leveling'
     ]
     
-    # Urutan loading yang benar
-    ALL: List[str] = SERVICES + FEATURES + COGS
+    @classmethod
+    def get_all(cls) -> List[str]:
+        """Get all extensions in proper loading order"""
+        return cls.SERVICES + cls.FEATURES + cls.COGS
     
     @classmethod
     def verify_loaded(cls, bot) -> bool:
