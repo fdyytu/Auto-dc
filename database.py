@@ -1,7 +1,8 @@
 """
 Database Manager
-Author: fdyyuk
+Author: fdyytu
 Created at: 2025-03-08 10:26:37 UTC
+Updated at: 2025-03-12 17:03:45 UTC
 """
 
 import sqlite3
@@ -58,7 +59,6 @@ def get_connection(max_retries: int = 3, timeout: int = 5) -> sqlite3.Connection
             logger.warning(f"Database connection attempt {attempt + 1} failed, retrying... Error: {e}")
             time.sleep(0.1 * (attempt + 1))
 
-
 def setup_database():
     """Initialize and setup all database tables"""
     conn = None
@@ -68,7 +68,6 @@ def setup_database():
         db_dir = db_path.parent
         db_dir.mkdir(parents=True, exist_ok=True)
 
-        # TAMBAHKAN KODE INI
         # If database exists, verify it first
         if db_path.exists():
             if verify_database():
@@ -580,17 +579,19 @@ def setup_database():
                     os.chmod('shop.db', 0o660)
                 except Exception as e:
                     logger.warning(f"Failed to set database file permissions: {e}")
+                    
+            return True
 
         except sqlite3.Error as e:
             logger.error(f"Database setup error: {e}")
             conn.rollback()
-            raise
+            return False
             
     except Exception as e:
         logger.error(f"Unexpected error during database setup: {e}")
         if conn and conn.in_transaction:
             conn.rollback()
-        raise
+        return False
     finally:
         if conn:
             try:
@@ -694,11 +695,18 @@ if __name__ == "__main__":
                 # Jika database ada tapi rusak, hapus dan buat ulang
                 logger.error("Database verification failed. Recreating database...")
                 Path('shop.db').unlink()
-                setup_database()
+                if setup_database():
+                    logger.info("Database successfully recreated")
+                else:
+                    logger.error("Failed to recreate database")
         else:
             # Jika database belum ada, buat baru
-            setup_database()
-            
+            if setup_database():
+                logger.info("Database successfully created")
+            else:
+                logger.error("Failed to create database")
+                
+        # Final verification
         if verify_database():
             logger.info("Database initialization complete")
         else:
