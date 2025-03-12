@@ -14,24 +14,17 @@ class BaseLockHandler:
         self.logger = logging.getLogger(self.__class__.__name__)
         
     async def acquire_lock(self, key: str, timeout: float = 10.0) -> Optional[Lock]:
-        """
-        Dapatkan atau buat lock untuk key tertentu
-        
-        Args:
-            key: Unique identifier untuk lock
-            timeout: Waktu maksimum menunggu lock dalam detik
-            
-        Returns:
-            Lock object jika berhasil, None jika gagal
-        """
         if key not in self._locks:
             self._locks[key] = Lock()
             
         try:
-            await asyncio.wait_for(self._locks[key].acquire(), timeout=timeout)
+            # Kurangi timeout untuk mencegah deadlock
+            actual_timeout = min(timeout, 5.0)
+            await asyncio.wait_for(self._locks[key].acquire(), timeout=actual_timeout)
+            self.logger.debug(f"Lock acquired for {key}")
             return self._locks[key]
         except asyncio.TimeoutError:
-            self.logger.error(f"Failed to acquire lock for {key} within {timeout} seconds")
+            self.logger.warning(f"Lock acquisition timeout for {key} after {actual_timeout}s")
             return None
         except Exception as e:
             self.logger.error(f"Error acquiring lock for {key}: {e}")
