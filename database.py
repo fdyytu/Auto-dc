@@ -58,6 +58,7 @@ def get_connection(max_retries: int = 3, timeout: int = 5) -> sqlite3.Connection
             logger.warning(f"Database connection attempt {attempt + 1} failed, retrying... Error: {e}")
             time.sleep(0.1 * (attempt + 1))
 
+
 def setup_database():
     """Initialize and setup all database tables"""
     conn = None
@@ -67,15 +68,14 @@ def setup_database():
         db_dir = db_path.parent
         db_dir.mkdir(parents=True, exist_ok=True)
 
-        # Backup existing database
+        # TAMBAHKAN KODE INI
+        # If database exists, verify it first
         if db_path.exists():
-            backup_path = f"shop.db.backup_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
-            try:
-                import shutil
-                shutil.copy2('shop.db', backup_path)
-                logger.info(f"Created database backup: {backup_path}")
-            except Exception as e:
-                logger.warning(f"Failed to create backup: {e}")
+            if verify_database():
+                logger.info("Database already exists and verified")
+                return True
+            else:
+                logger.warning("Database verification failed, continuing with setup...")
 
         conn = get_connection()
         cursor = conn.cursor()
