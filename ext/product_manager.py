@@ -293,16 +293,30 @@ class ProductManagerService(BaseLockHandler):
             self.release_lock("products_getall")
 
     async def add_stock_item(self, product_code: str, content: str, added_by: str) -> ProductResponse:
-        """Add stock item with proper locking"""
-        lock = await self.acquire_lock(f"stock_add_{product_code}")
+        """Add stock item dengan enhanced duplicate checking"""
+        # Buat unique lock key berdasarkan content
+        content_hash = hashlib.md5(content.encode()).hexdigest()
+        lock_key = f"stock_add_{product_code}_{content_hash}"
+        
+        lock = await self.acquire_lock(lock_key)
         if not lock:
             return ProductResponse.error(MESSAGES.ERROR['TRANSACTION_FAILED'])
-
+    
         conn = None
         try:
             conn = get_connection()
             cursor = conn.cursor()
             
+            # Check duplicates dengan index
+            cursor.execute("""
+                SELECT id FROM stock 
+                WHERE product_code = ? AND content = ? 
+                AND status != ?
+            """, (product_code, content, Status.DELETED.value))
+            
+            if cursor.fetchone():
+                return ProductResponse.error("Duplicate stock content detected")
+                
             # Verify product exists
             cursor.execute(
                 "SELECT code FROM products WHERE code = ? COLLATE NOCASE",
