@@ -1,8 +1,8 @@
 """
 Live Stock Manager
-Author: fdyyuk
+Author: fdyytu
 Created at: 2025-03-07 18:30:16 UTC
-Last Modified: 2025-03-12 02:40:10 UTC
+Last Modified: 2025-03-12 02:48:50 UTC
 
 Dependencies:
 - ext.product_manager: For product operations
@@ -135,7 +135,7 @@ class LiveStockManager(BaseLockHandler):
                 self.logger.error(f"Error getting world info: {e}")
 
             try:
-                # Grouping products by category untuk tampilan yang lebih terorganisir
+                # Grouping products by category
                 categories = {}
                 for product in products:
                     category = product.get('category', 'Other')
@@ -268,10 +268,6 @@ class LiveStockManager(BaseLockHandler):
                 self.current_stock_message = await channel.send(embed=embed, view=view)
                 return True
 
-            except discord.HTTPException as e:
-                self.logger.error(f"HTTP error updating stock display: {e}")
-                return False
-
         except Exception as e:
             self.logger.error(f"Error updating stock display: {e}")
             try:
@@ -322,29 +318,38 @@ class LiveStockCog(commands.Cog):
 
     async def start_tasks(self):
         """Start background tasks safely"""
-        self.update_stock_task = self.update_stock.start()
-        self.logger.info("Stock update task started")
+        try:
+            self.logger.info("Attempting to start stock update task...")
+            self.update_stock_task = self.update_stock.start()
+            self.logger.info("Stock update task started successfully")
+        except Exception as e:
+            self.logger.error(f"Failed to start tasks: {e}")
+            raise
 
     async def cog_load(self):
         """Setup when cog is loaded"""
         try:
             self.logger.info("LiveStockCog loading...")
+            self.logger.info("Waiting for bot to be ready...")
             await self.bot.wait_until_ready()
+            self.logger.info("Bot is ready, proceeding with initialization...")
             
             # Initialize manager first
             channel = self.bot.get_channel(self.stock_manager.stock_channel_id)
             if not channel:
                 self.logger.error(f"Stock channel {self.stock_manager.stock_channel_id} not found")
                 return
+            self.logger.info(f"Found stock channel: {channel.name}")
 
             # Clean up old messages
             try:
                 await channel.purge(limit=1)
-                self.logger.info("Channel cleaned")
+                self.logger.info("Channel cleaned successfully")
             except Exception as e:
                 self.logger.error(f"Error cleaning channel: {e}")
 
             # Start tasks
+            self.logger.info("Starting background tasks...")
             await self.start_tasks()
             self._ready.set()
             self.logger.info("LiveStockCog loaded successfully")
