@@ -17,19 +17,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 def get_connection(max_retries: int = 3, timeout: int = 5) -> sqlite3.Connection:
-    """
-    Get SQLite database connection with retry mechanism
-    
-    Args:
-        max_retries (int): Maximum number of connection attempts
-        timeout (int): Connection timeout in seconds
-        
-    Returns:
-        sqlite3.Connection: Database connection object
-        
-    Raises:
-        sqlite3.Error: If connection fails after all retries
-    """
+    """Get database connection dengan enhanced safety"""
     db_path = Path('shop.db')
     db_dir = db_path.parent
 
@@ -43,20 +31,28 @@ def get_connection(max_retries: int = 3, timeout: int = 5) -> sqlite3.Connection
             conn = sqlite3.connect('shop.db', timeout=timeout)
             conn.row_factory = sqlite3.Row
             
-            # Configure database settings
+            # Configure database settings for better concurrency
             cursor = conn.cursor()
+            
+            # Tingkatkan busy timeout untuk mencegah database locked errors
+            cursor.execute("PRAGMA busy_timeout = 5000")
+            
+            # Gunakan WAL mode untuk concurrent access yang lebih baik
+            cursor.execute("PRAGMA journal_mode = WAL")
+            
+            # Balance antara performance dan safety
+            cursor.execute("PRAGMA synchronous = NORMAL")
+            
+            # Enforce foreign key constraints
             cursor.execute("PRAGMA foreign_keys = ON")
-            cursor.execute("PRAGMA journal_mode = DELETE")  # More stable than WAL
-            cursor.execute("PRAGMA busy_timeout = 60000")   # 60 second timeout
-            cursor.execute("PRAGMA synchronous = NORMAL")   # Balance performance and safety
-            cursor.execute("PRAGMA temp_store = MEMORY")    # Store temp tables in memory
             
             return conn
+            
         except sqlite3.Error as e:
             if attempt == max_retries - 1:
                 logger.error(f"Failed to connect to database after {max_retries} attempts: {e}")
                 raise
-            logger.warning(f"Database connection attempt {attempt + 1} failed, retrying... Error: {e}")
+            logger.warning(f"Database connection attempt {attempt + 1} failed: {e}")
             time.sleep(0.1 * (attempt + 1))
 
 def setup_database():
