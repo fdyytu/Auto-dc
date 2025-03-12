@@ -3,7 +3,7 @@
 Discord Bot for Store DC
 Author: fdyyuk
 Created at: 2025-03-07 18:30:16 UTC
-Last Modified: 2025-03-12 03:40:40 UTC
+Last Modified: 2025-03-12 16:43:04 UTC
 """
 
 import sys
@@ -117,9 +117,9 @@ def check_dependencies():
                 missing.append(package)
 
     if missing:
-        logger.critical(f"Missing required packages: {', '.join(missing)}")
-        logger.info("Please install required packages using:")
-        logger.info(f"pip install {' '.join(missing)}")
+        print(f"Missing required packages: {', '.join(missing)}")
+        print("Please install required packages using:")
+        print(f"pip install {' '.join(missing)}")
         sys.exit(1)
 
 # Check dependencies and setup structure first
@@ -133,12 +133,6 @@ if not setup_logging():
 
 logger = logging.getLogger(__name__)
 
-# Setup logging
-if not setup_logging():
-    print("Failed to initialize logging system")
-    sys.exit(1)
-
-logger = logging.getLogger(__name__)
 def load_config():
     """Load and validate configuration"""
     required_keys = [
