@@ -686,30 +686,23 @@ if __name__ == "__main__":
     )
     
     try:
-        setup_database()
-        if not verify_database():
-            logger.error("Database verification failed. Attempting to recreate database...")
-            # Backup existing database if it exists
-            if Path('shop.db').exists():
-                backup_path = f"shop.db.backup_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
-                import shutil
-                try:
-                    shutil.copy2('shop.db', backup_path)
-                    logger.info(f"Created database backup: {backup_path}")
-                except Exception as e:
-                    logger.error(f"Failed to create backup: {e}")
-            
-            # Recreate database
-            try:
-                Path('shop.db').unlink(missing_ok=True)
+        # Cek apakah database sudah ada dan valid
+        if Path('shop.db').exists():
+            if verify_database():
+                logger.info("Database already exists and verified")
+            else:
+                # Jika database ada tapi rusak, hapus dan buat ulang
+                logger.error("Database verification failed. Recreating database...")
+                Path('shop.db').unlink()
                 setup_database()
-                if verify_database():
-                    logger.info("Database successfully recreated")
-                else:
-                    logger.error("Failed to recreate database")
-            except Exception as e:
-                logger.error(f"Error during database recreation: {e}")
         else:
+            # Jika database belum ada, buat baru
+            setup_database()
+            
+        if verify_database():
             logger.info("Database initialization complete")
+        else:
+            logger.error("Database verification failed")
+            
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}", exc_info=True)
