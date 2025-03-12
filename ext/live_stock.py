@@ -2,7 +2,7 @@
 Live Stock Manager
 Author: fdyytu
 Created at: 2025-03-07 18:30:16 UTC
-Last Modified: 2025-03-12 04:23:30 UTC
+Last Modified: 2025-03-12 04:39:37 UTC
 
 Dependencies:
 - ext.product_manager: For product operations
@@ -65,10 +65,28 @@ class LiveStockManager(BaseLockHandler):
             self._ready.set()
             self.logger.info("LiveStockManager is ready")
 
+    async def find_last_message(self) -> Optional[discord.Message]:
+        """Cari pesan terakhir yang dikirim bot di channel"""
+        try:
+            channel = self.bot.get_channel(self.stock_channel_id)
+            if not channel:
+                return None
+                
+            # Cari pesan terakhir dari bot di channel
+            async for message in channel.history(limit=50):  # Batasi 50 pesan terakhir
+                if (message.author == self.bot.user and 
+                    len(message.embeds) > 0 and 
+                    message.embeds[0].title and 
+                    "Growtopia Shop Status" in message.embeds[0].title):
+                    return message
+            return None
+        except Exception as e:
+            self.logger.error(f"Error finding last message: {e}")
+            return None
+
     async def set_button_manager(self, button_manager):
         """Set button manager untuk integrasi"""
         self.button_manager = button_manager
-        self._ready.set()
         self.logger.info("Button manager set successfully")
 
     async def create_stock_embed(self) -> discord.Embed:
@@ -233,14 +251,18 @@ class LiveStockManager(BaseLockHandler):
 
             embed = await self.create_stock_embed()
 
+            # Cari pesan yang ada jika belum ada current_message
             if not self.current_stock_message:
-                # Buat pesan baru dengan view jika belum ada
+                self.current_stock_message = await self.find_last_message()
+
+            if not self.current_stock_message:
+                # Buat pesan baru jika tidak ada yang ditemukan
                 view = self.button_manager.create_view() if self.button_manager else None
                 self.current_stock_message = await channel.send(embed=embed, view=view)
                 return True
 
             try:
-                # Update HANYA embed, biarkan view yang ada
+                # Update pesan yang ada
                 await self.current_stock_message.edit(embed=embed)
                 return True
 
@@ -254,16 +276,6 @@ class LiveStockManager(BaseLockHandler):
 
         except Exception as e:
             self.logger.error(f"Error updating stock display: {e}")
-            try:
-                if self.current_stock_message:
-                    error_embed = discord.Embed(
-                        title="❌ System Error",
-                        description=MESSAGES.ERROR['DISPLAY_ERROR'],
-                        color=COLORS.ERROR
-                    )
-                    await self.current_stock_message.edit(embed=error_embed)
-            except:
-                pass
             return False
 
     async def cleanup(self):
@@ -299,7 +311,6 @@ class LiveStockCog(commands.Cog):
         self._ready = asyncio.Event()
         self.update_stock_task = None
         self.logger.info("LiveStockCog instance created")
-        # Initialize stock manager
         asyncio.create_task(self.stock_manager.initialize())
 
     async def start_tasks(self):
