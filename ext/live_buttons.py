@@ -46,7 +46,7 @@ class QuantityModal(Modal):
     def __init__(self, product_code: str, max_quantity: int):
         super().__init__(title="🛍️ Jumlah Pembelian")
         self.product_code = product_code
-        
+
         self.quantity = TextInput(
             label="Masukkan jumlah yang ingin dibeli",
             placeholder=f"Maksimal {max_quantity}",
@@ -62,45 +62,45 @@ class QuantityModal(Modal):
             quantity = int(self.quantity.value)
             if quantity <= 0:
                 raise ValueError(MESSAGES.ERROR['INVALID_AMOUNT'])
-                
+
             product_service = ProductManagerService(interaction.client)
             balance_service = BalanceManagerService(interaction.client)
             trx_manager = TransactionManager(interaction.client)
-            
+
             # Get product details
             product_response = await product_service.get_product(self.product_code)
             if not product_response.success:
                 raise ValueError(product_response.error)
-            
+
             product = product_response.data
-            
+
             # Verify stock
             stock_response = await product_service.get_stock_count(self.product_code)
             if not stock_response.success:
                 raise ValueError(stock_response.error)
-                
+
             if stock_response.data < quantity:
                 raise ValueError(MESSAGES.ERROR['INSUFFICIENT_STOCK'])
-            
+
             # Calculate total price
             total_price = float(product['price']) * quantity
-            
+
             # Get user's GrowID
             growid_response = await balance_service.get_growid(str(interaction.user.id))
             if not growid_response.success:
                 raise ValueError(growid_response.error)
-            
+
             growid = growid_response.data
-            
+
             # Verify balance
             balance_response = await balance_service.get_balance(growid)
             if not balance_response.success:
                 raise ValueError(balance_response.error)
-            
+
             balance = balance_response.data
             if balance.total_wl() < total_price:
                 raise ValueError(MESSAGES.ERROR['INSUFFICIENT_BALANCE'])
-            
+
             # Process purchase
             purchase_response = await trx_manager.process_purchase(
                 growid=growid,
@@ -108,16 +108,16 @@ class QuantityModal(Modal):
                 quantity=quantity,
                 price=total_price
             )
-            
+
             if not purchase_response.success:
                 raise ValueError(purchase_response.error)
-            
+
             # Create success message
             embed = discord.Embed(
                 title="✅ Pembelian Berhasil",
                 color=COLORS.SUCCESS
             )
-            
+
             embed.add_field(
                 name="Detail Pembelian",
                 value=(
@@ -130,9 +130,9 @@ class QuantityModal(Modal):
                 ),
                 inline=False
             )
-            
+
             await interaction.followup.send(embed=embed, ephemeral=True)
-            
+
         except ValueError as e:
             error_embed = discord.Embed(
                 title="❌ Error",
@@ -177,31 +177,31 @@ class ProductSelect(Select):
             product_response = await self.product_service.get_product(selected_code)
             if not product_response.success:
                 raise ValueError(product_response.error)
-                
+
             selected_product = product_response.data
-            
+
             # Verifikasi stock realtime
             stock_response = await self.product_service.get_stock_count(selected_code)
             if not stock_response.success:
                 raise ValueError(stock_response.error)
-                
+
             current_stock = stock_response.data
             if current_stock <= 0:
                 raise ValueError(MESSAGES.ERROR['OUT_OF_STOCK'])
-            
+
             # Verifikasi user balance
             growid_response = await self.balance_service.get_growid(str(interaction.user.id))
             if not growid_response.success:
                 raise ValueError(growid_response.error)
-            
+
             growid = growid_response.data
             if not growid:
                 raise ValueError(MESSAGES.ERROR['NOT_REGISTERED'])
-                
+
             await interaction.followup.send_modal(
                 QuantityModal(selected_code, min(current_stock, 999))
             )
-            
+
         except Exception as e:
             error_msg = str(e) if isinstance(e, ValueError) else MESSAGES.ERROR['TRANSACTION_FAILED']
             await interaction.followup.send(
@@ -216,7 +216,7 @@ class ProductSelect(Select):
 class RegisterModal(Modal):
     def __init__(self):
         super().__init__(title="📝 Pendaftaran GrowID")
-        
+
         self.growid = TextInput(
             label="Masukkan GrowID Anda",
             placeholder="Contoh: GROW_ID",
@@ -230,26 +230,26 @@ class RegisterModal(Modal):
         await interaction.response.defer(ephemeral=True)
         try:
             balance_service = BalanceManagerService(interaction.client)
-            
+
             growid = str(self.growid.value).strip().upper()
             if not growid or len(growid) < 3:
                 raise ValueError(MESSAGES.ERROR['INVALID_GROWID'])
-            
+
             register_response = await balance_service.register_user(
                 str(interaction.user.id),
                 growid
             )
-            
+
             if not register_response.success:
                 raise ValueError(register_response.error)
-            
+
             success_embed = discord.Embed(
                 title="✅ Berhasil",
                 description=MESSAGES.SUCCESS['REGISTRATION'].format(growid=growid),
                 color=COLORS.SUCCESS
             )
             await interaction.followup.send(embed=success_embed, ephemeral=True)
-            
+
         except ValueError as e:
             error_embed = discord.Embed(
                 title="❌ Error",
@@ -287,10 +287,10 @@ class ShopView(View):
 
     async def _acquire_interaction_lock(self, interaction_id: str) -> bool:
         await self._cleanup_locks()
-        
+
         if interaction_id not in self._interaction_locks:
             self._interaction_locks[interaction_id] = asyncio.Lock()
-        
+
         try:
             await asyncio.wait_for(
                 self._interaction_locks[interaction_id].acquire(),
@@ -388,15 +388,15 @@ class ShopView(View):
 
         try:
             await interaction.response.defer(ephemeral=True)
-            
+
             # Check maintenance mode
             if await self.admin_service.is_maintenance_mode():
                 raise ValueError(MESSAGES.INFO['MAINTENANCE'])
-            
+
             growid_response = await self.balance_service.get_growid(str(interaction.user.id))
             if not growid_response.success:
                 raise ValueError(growid_response.error)
-                
+
             growid = growid_response.data
             if not growid:
                 raise ValueError(MESSAGES.ERROR['NOT_REGISTERED'])
@@ -404,7 +404,7 @@ class ShopView(View):
             balance_response = await self.balance_service.get_balance(growid)
             if not balance_response.success:
                 raise ValueError(balance_response.error)
-                
+
             balance = balance_response.data
 
             # Format balance untuk display
@@ -416,13 +416,13 @@ class ShopView(View):
                 description=f"Saldo untuk `{growid}`",
                 color=COLORS.INFO
             )
-            
+
             embed.add_field(
                 name="Saldo Saat Ini",
                 value=f"```yml\n{display_balance}```",
                 inline=False
             )
-            
+
             # Get transaction history
             trx_response = await self.trx_manager.get_transaction_history(growid, limit=3)
             if trx_response.success and trx_response.data:
@@ -433,11 +433,11 @@ class ShopView(View):
                     new_balance = Balance.from_string(trx['new_balance'])
                     change = new_balance.total_wl() - old_balance.total_wl()
                     sign = "+" if change >= 0 else ""
-                    
+
                     trx_details.append(
                         f"• {trx['type']}: {sign}{change} WL - {trx['details']}"
                     )
-                
+
                 embed.add_field(
                     name="Transaksi Terakhir",
                     value=f"```yml\n{chr(10).join(trx_details)}```",
@@ -446,7 +446,7 @@ class ShopView(View):
 
             embed.set_footer(text="Diperbarui")
             embed.timestamp = datetime.utcnow()
-            
+
             await interaction.followup.send(embed=embed, ephemeral=True)
 
         except ValueError as e:
@@ -494,76 +494,83 @@ class ShopView(View):
                 ephemeral=True
             )
             return
-
+    
         try:
             await interaction.response.defer(ephemeral=True)
             
             # Check maintenance mode
             if await self.admin_service.is_maintenance_mode():
                 raise ValueError(MESSAGES.INFO['MAINTENANCE'])
+                
+            # Gunakan ProductManager untuk get world info
+            world_response = await self.product_manager.get_world_info()
+            if not world_response.success:
+                raise ValueError(world_response.error or MESSAGES.ERROR['WORLD_INFO_FAILED'])
+                
+            world_info = world_response.data
             
-            # Try to get from cache first
-            cache_key = 'world_info'
-            world_info = await self.cache_manager.get(cache_key)
+            # Format status dengan proper emoji
+            status_emoji = {
+                'online': '🟢',
+                'offline': '🔴',
+                'maintenance': '🔧',
+                'busy': '🟡',
+                'full': '🔵'
+            }
             
-            if not world_info:
-                world_response = await self.product_service.get_world_info()
-                if not world_response.success:
-                    raise ValueError(world_response.error)
-                    
-                world_info = world_response.data
-                if world_info:
-                    await self.cache_manager.set(
-                        cache_key,
-                        world_info,
-                        expires_in=CACHE_TIMEOUT.get_seconds(CACHE_TIMEOUT.MEDIUM)
-                    )
-            
+            status = world_info.get('status', '').lower()
+            status_display = f"{status_emoji.get(status, '❓')} {status.upper()}"
+    
             embed = discord.Embed(
                 title="🌎 World Information",
                 color=COLORS.INFO
             )
+    
+            # Basic info dalam format yang rapi
+            basic_info = [
+                f"{'World':<12}: {world_info.get('world', 'N/A')}",
+                f"{'Owner':<12}: {world_info.get('owner', 'N/A')}",
+                f"{'Bot':<12}: {world_info.get('bot', 'N/A')}",
+                f"{'Status':<12}: {status_display}"
+            ]
             
             embed.add_field(
-                name="Detail World",
-                value=(
-                    "```yml\n"
-                    f"World Name : {world_info['name']}\n"
-                    f"Owner      : {world_info['owner']}\n"
-                    f"Bot        : {world_info['bot']}\n"
-                    f"Status     : {world_info['status']}\n"
-                    "```"
-                ),
+                name="Basic Info",
+                value="```" + "\n".join(basic_info) + "```",
                 inline=False
             )
-            
-            if 'description' in world_info:
-                embed.add_field(
-                    name="Deskripsi",
-                    value=f"```{world_info['description']}```",
-                    inline=False
-                )
-            
-            embed.set_footer(text="Last Updated")
-            embed.timestamp = datetime.utcnow()
-            
+    
+            # Last updated dengan format yang benar
+            updated_at = world_info.get('updated_at')
+            if updated_at:
+                try:
+                    dt = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
+                    last_update = dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+                except:
+                    last_update = "Unknown"
+                embed.set_footer(text=f"Last Updated: {last_update}")
+    
             await interaction.followup.send(embed=embed, ephemeral=True)
-
+    
         except ValueError as e:
-            error_embed = discord.Embed(
-                title="❌ Error",
-                description=str(e),
-                color=COLORS.ERROR
+            await interaction.followup.send(
+                embed=discord.Embed(
+                    title="❌ Error",
+                    description=str(e),
+                    color=COLORS.ERROR
+                ),
+                ephemeral=True
             )
-            await interaction.followup.send(embed=error_embed, ephemeral=True)
         except Exception as e:
             self.logger.error(f"Error in world info callback: {e}")
-            error_embed = discord.Embed(
-                title="❌ Error",
-                description=MESSAGES.ERROR['WORLD_INFO_FAILED'],
-                color=COLORS.ERROR
+            await interaction.followup.send(
+                embed=discord.Embed(
+                    title="❌ Error",
+                    description=MESSAGES.ERROR['WORLD_INFO_FAILED'],
+                    color=COLORS.ERROR
+                ),
+                ephemeral=True
             )
-            await interaction.followup.send(embed=error_embed, ephemeral=True)
         finally:
             self._release_interaction_lock(str(interaction.id))
 
@@ -586,15 +593,15 @@ class ShopView(View):
 
         try:
             await interaction.response.defer(ephemeral=True)
-            
+
             # Check maintenance mode
             if await self.admin_service.is_maintenance_mode():
                 raise ValueError(MESSAGES.INFO['MAINTENANCE'])
-            
+
             growid_response = await self.balance_service.get_growid(str(interaction.user.id))
             if not growid_response.success:
                 raise ValueError(growid_response.error)
-                
+
             growid = growid_response.data
             if not growid:
                 raise ValueError(MESSAGES.ERROR['NOT_REGISTERED'])
@@ -603,10 +610,10 @@ class ShopView(View):
             product_response = await self.product_service.get_all_products()
             if not product_response.success:
                 raise ValueError(product_response.error)
-                
+
             products = product_response.data
             available_products = []
-            
+
             for product in products:
                 stock_response = await self.product_service.get_stock_count(product['code'])
                 if stock_response.success and stock_response.data > 0:
@@ -629,7 +636,7 @@ class ShopView(View):
             for product in available_products:
                 price = float(product['price'])
                 price_display = self._format_currency(price)
-                    
+
                 embed.add_field(
                     name=f"{product['name']} [{product['code']}]",
                     value=(
@@ -649,7 +656,7 @@ class ShopView(View):
                 self.product_service,
                 self.trx_manager
             ))
-            
+
             await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
         except ValueError as e:
@@ -689,15 +696,15 @@ class ShopView(View):
 
         try:
             await interaction.response.defer(ephemeral=True)
-            
+
             # Check maintenance mode
             if await self.admin_service.is_maintenance_mode():
                 raise ValueError(MESSAGES.INFO['MAINTENANCE'])
-            
+
             growid_response = await self.balance_service.get_growid(str(interaction.user.id))
             if not growid_response.success:
                 raise ValueError(growid_response.error)
-                
+
             growid = growid_response.data
             if not growid:
                 raise ValueError(MESSAGES.ERROR['NOT_REGISTERED'])
@@ -705,7 +712,7 @@ class ShopView(View):
             trx_response = await self.trx_manager.get_transaction_history(growid, limit=5)
             if not trx_response.success:
                 raise ValueError(trx_response.error)
-                
+
             transactions = trx_response.data
             if not transactions:
                 raise ValueError(MESSAGES.ERROR['NO_HISTORY'])
@@ -726,19 +733,19 @@ class ShopView(View):
                     TransactionType.ADMIN_REMOVE.value: "🔸"
                 }
                 emoji = emoji_map.get(trx['type'], "❓")
-                
+
                 # Format timestamp
                 timestamp = datetime.fromisoformat(trx['created_at'].replace('Z', '+00:00'))
-                
+
                 # Calculate balance change
                 old_balance = Balance.from_string(trx['old_balance'])
                 new_balance = Balance.from_string(trx['new_balance'])
                 balance_change = new_balance.total_wl() - old_balance.total_wl()
-                
+
                 # Format balance change
                 change_display = self._format_currency(abs(balance_change))
                 change_prefix = "+" if balance_change >= 0 else "-"
-                
+
                 embed.add_field(
                     name=f"{emoji} Transaksi #{i}",
                     value=(
@@ -755,7 +762,7 @@ class ShopView(View):
 
             embed.set_footer(text="Menampilkan 5 transaksi terakhir")
             embed.timestamp = datetime.utcnow()
-            
+
             await interaction.followup.send(embed=embed, ephemeral=True)
 
         except ValueError as e:
@@ -794,7 +801,7 @@ class LiveButtonManager(BaseLockHandler):
     def create_view(self):
         """Create shop view with buttons"""
         return ShopView(self.bot)
-        
+
     async def set_stock_manager(self, stock_manager):
         """Set stock manager untuk integrasi"""
         self.stock_manager = stock_manager
@@ -809,7 +816,7 @@ class LiveButtonManager(BaseLockHandler):
             if not channel:
                 self.logger.error(f"Channel stock dengan ID {self.stock_channel_id} tidak ditemukan")
                 return None
-    
+
             # First check if stock manager has a valid message
             if self.stock_manager and self.stock_manager.current_stock_message:
                 self.current_message = self.stock_manager.current_stock_message
@@ -817,7 +824,7 @@ class LiveButtonManager(BaseLockHandler):
                 view = self.create_view()
                 await self.current_message.edit(view=view)
                 return self.current_message
-    
+
             # Find last message if exists
             if self.stock_manager:
                 existing_message = await self.stock_manager.find_last_message()
@@ -825,13 +832,13 @@ class LiveButtonManager(BaseLockHandler):
                     self.current_message = existing_message
                     # Update both stock manager and button manager references
                     self.stock_manager.current_stock_message = existing_message
-                    
+
                     # Update embed and view
                     embed = await self.stock_manager.create_stock_embed()
                     view = self.create_view()
                     await existing_message.edit(embed=embed, view=view)
                     return existing_message
-    
+
             # Create new message if none found
             if self.stock_manager:
                 embed = await self.stock_manager.create_stock_embed()
@@ -841,30 +848,30 @@ class LiveButtonManager(BaseLockHandler):
                     description=MESSAGES.INFO['INITIALIZING'],
                     color=COLORS.WARNING
                 )
-                
+
             view = self.create_view()
             self.current_message = await channel.send(embed=embed, view=view)
-            
+
             # Update stock manager reference
             if self.stock_manager:
                 self.stock_manager.current_stock_message = self.current_message
-    
+
             return self.current_message
-    
+
         except Exception as e:
             self.logger.error(f"Error in get_or_create_message: {e}")
             return None
-    
+
     # Di LiveButtonManager, perbaiki method force_update
     async def force_update(self) -> bool:
         """Force update stock display and buttons"""
         try:
             if not self.current_message:
                 self.current_message = await self.get_or_create_message()
-                
+
             if not self.current_message:
                 return False
-    
+
             # Check maintenance mode 
             try:
                 is_maintenance = await self.admin_service.is_maintenance_mode()
@@ -879,14 +886,14 @@ class LiveButtonManager(BaseLockHandler):
             except Exception as e:
                 self.logger.error(f"Error checking maintenance mode: {e}")
                 return False
-    
+
             if self.stock_manager:
                 await self.stock_manager.update_stock_display()
-            
+
             view = self.create_view()
             await self.current_message.edit(view=view)
             return True
-    
+
         except Exception as e:
             self.logger.error(f"Error in force update: {e}")
             return False
@@ -901,19 +908,19 @@ class LiveButtonManager(BaseLockHandler):
                     color=COLORS.WARNING
                 )
                 await self.current_message.edit(embed=embed, view=None)
-                    
+
             # Clear caches
             patterns = [
                 'live_stock_message_id',
                 'world_info',
                 'available_products'
             ]
-            
+
             for pattern in patterns:
                 await self.cache_manager.delete(pattern)
-                    
+
             self.logger.info("LiveButtonManager cleanup completed")
-                
+
         except Exception as e:
             self.logger.error(f"Error in cleanup: {e}")
 
@@ -931,23 +938,23 @@ class LiveButtonsCog(commands.Cog):
         """Wait for stock manager to be available"""
         try:
             start_time = datetime.utcnow()
-            
+
             while (datetime.utcnow() - start_time).total_seconds() < timeout:
                 self.logger.info("Attempting to get StockManager...")
                 stock_cog = self.bot.get_cog('LiveStockCog')
-                
+
                 if stock_cog and hasattr(stock_cog, 'stock_manager'):
                     self.logger.info("Found StockManager")
                     self.stock_manager = stock_cog.stock_manager
                     if self.stock_manager and self.stock_manager._ready.is_set():
                         self.logger.info("StockManager is ready")
                         return True
-                
+
                 await asyncio.sleep(2)
-            
+
             self.logger.error("Timeout waiting for StockManager")
             return False
-            
+
         except Exception as e:
             self.logger.error(f"Error waiting for stock manager: {e}")
             return False
@@ -957,7 +964,7 @@ class LiveButtonsCog(commands.Cog):
         try:
             async with self._initialization_lock:
                 self.logger.info("Starting dependency initialization...")
-                
+
                 if self._ready.is_set():
                     self.logger.info("Dependencies already initialized")
                     return True
@@ -973,7 +980,7 @@ class LiveButtonsCog(commands.Cog):
 
                 # Set stock manager to button manager
                 await self.button_manager.set_stock_manager(self.stock_manager)
-                
+
                 self._ready.set()
                 self.logger.info("Dependencies initialized successfully")
                 return True
@@ -986,7 +993,7 @@ class LiveButtonsCog(commands.Cog):
         """Setup when cog is loaded"""
         try:
             self.logger.info("LiveButtonsCog loading...")
-            
+
             # Initialize dependencies with timeout
             try:
                 async with asyncio.timeout(45):
@@ -997,7 +1004,7 @@ class LiveButtonsCog(commands.Cog):
             except asyncio.TimeoutError:
                 self.logger.error("Initialization timed out")
                 raise
-            
+
             # Start background task
             self.check_display.start()
             self.logger.info("LiveButtonsCog loaded successfully")
@@ -1020,7 +1027,7 @@ class LiveButtonsCog(commands.Cog):
         """Periodically check and update display"""
         if not self._ready.is_set():
             return
-            
+
         try:
             message = self.button_manager.current_message
             if not message:
@@ -1033,7 +1040,7 @@ class LiveButtonsCog(commands.Cog):
                     await message.edit(embed=embed)
         except Exception as e:
             self.logger.error(f"Error in check_display: {e}")
-            
+
     @check_display.before_loop
     async def before_check_display(self):
         """Wait until ready before starting the loop"""
@@ -1053,7 +1060,7 @@ async def setup(bot):
 
             cog = LiveButtonsCog(bot)
             await bot.add_cog(cog)
-            
+
             # Wait for initialization with timeout
             try:
                 async with asyncio.timeout(45):
@@ -1062,10 +1069,10 @@ async def setup(bot):
                 logging.error("LiveButtonsCog initialization timed out")
                 await bot.remove_cog('LiveButtonsCog')
                 raise RuntimeError("Initialization timed out")
-            
+
             setattr(bot, COG_LOADED['LIVE_BUTTONS'], True)
             logging.info("LiveButtons cog loaded successfully")
-            
+
     except Exception as e:
         logging.error(f"Failed to load LiveButtonsCog: {e}")
         if hasattr(bot, COG_LOADED['LIVE_BUTTONS']):
