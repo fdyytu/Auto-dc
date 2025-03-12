@@ -30,7 +30,7 @@ from ext.constants import (
 from ext.admin_service import AdminService
 from ext.balance_manager import BalanceManagerService
 from ext.product_manager import ProductManagerService
-from ext.transaction_manager import TransactionManager
+from ext.trx import TransactionManager
 from ext.database import get_connection
 from ext.cache_manager import CacheManager
 from ext.base_handler import BaseLockHandler, BaseResponseHandler
