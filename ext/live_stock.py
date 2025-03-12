@@ -330,33 +330,45 @@ class LiveStockCog(commands.Cog):
         """Setup when cog is loaded"""
         try:
             self.logger.info("LiveStockCog loading...")
-            self.logger.info("Waiting for bot to be ready...")
-            await self.bot.wait_until_ready()
-            self.logger.info("Bot is ready, proceeding with initialization...")
             
-            # Initialize manager first
+            # Setup dasar tanpa menunggu bot ready
+            self._ready.set()  # Set ready flag awal
+            
+            # Schedule delayed setup
+            self.bot.loop.create_task(self.delayed_setup())
+            self.logger.info("LiveStockCog base loading complete")
+    
+        except Exception as e:
+            self.logger.error(f"Error in cog_load: {e}")
+            raise
+    
+    async def delayed_setup(self):
+        """Setup yang membutuhkan bot ready"""
+        try:
+            self.logger.info("Starting delayed setup...")
+            
+            # Tunggu bot ready dengan timeout
+            try:
+                async with asyncio.timeout(30):  # 30 detik timeout
+                    self.logger.info("Waiting for bot to be ready...")
+                    await self.bot.wait_until_ready()
+                    self.logger.info("Bot is ready, proceeding with initialization...")
+            except asyncio.TimeoutError:
+                self.logger.error("Timeout waiting for bot ready")
+                return
+    
+            # Initialize channel
             channel = self.bot.get_channel(self.stock_manager.stock_channel_id)
             if not channel:
                 self.logger.error(f"Stock channel {self.stock_manager.stock_channel_id} not found")
                 return
-            self.logger.info(f"Found stock channel: {channel.name}")
-
-            # Clean up old messages
-            try:
-                await channel.purge(limit=1)
-                self.logger.info("Channel cleaned successfully")
-            except Exception as e:
-                self.logger.error(f"Error cleaning channel: {e}")
-
-            # Start tasks
-            self.logger.info("Starting background tasks...")
+            
+            # Start background tasks
             await self.start_tasks()
-            self._ready.set()
-            self.logger.info("LiveStockCog loaded successfully")
-
+            self.logger.info("LiveStockCog fully initialized")
+    
         except Exception as e:
-            self.logger.error(f"Error in cog_load: {e}")
-            raise
+            self.logger.error(f"Error in delayed setup: {e}")
 
     async def cog_unload(self):
         """Cleanup when cog is unloaded"""
