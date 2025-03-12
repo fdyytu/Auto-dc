@@ -89,8 +89,7 @@ def setup_logging():
     except Exception as e:
         print(f"Failed to setup logging: {e}")
         return False
-logger = logging.getLogger(__name__)
-
+    
 def setup_project_structure():
     """Create necessary directories and files"""
     dirs = ['logs', 'ext', 'utils', 'cogs', 'data', 'temp', 'backups']
@@ -127,10 +126,12 @@ def check_dependencies():
 check_dependencies()
 setup_project_structure()
 
-# Setup enhanced logging
-log_dir = Path(PATHS.LOGS)
-log_dir.mkdir(exist_ok=True)
+# Setup logging
+if not setup_logging():
+    print("Failed to initialize logging system")
+    sys.exit(1)
 
+logger = logging.getLogger(__name__)
 def load_config():
     """Load and validate configuration"""
     required_keys = [
