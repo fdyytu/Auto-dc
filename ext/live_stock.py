@@ -2,7 +2,7 @@
 Live Stock Manager
 Author: fdyytu
 Created at: 2025-03-07 18:30:16 UTC
-Last Modified: 2025-03-12 02:48:50 UTC
+Last Modified: 2025-03-12 04:23:30 UTC
 
 Dependencies:
 - ext.product_manager: For product operations
@@ -59,6 +59,12 @@ class LiveStockManager(BaseLockHandler):
             self.initialized = True
             self.logger.info("LiveStockManager initialized")
 
+    async def initialize(self):
+        """Initialize manager and set ready state"""
+        if not self._ready.is_set():
+            self._ready.set()
+            self.logger.info("LiveStockManager is ready")
+
     async def set_button_manager(self, button_manager):
         """Set button manager untuk integrasi"""
         self.button_manager = button_manager
@@ -113,26 +119,6 @@ class LiveStockManager(BaseLockHandler):
                 value=f"```ansi\n\u001b[0;36m{current_time} UTC\u001b[0m```",
                 inline=False
             )
-
-            # Get world info if available
-            try:
-                world_info = await self.product_service.get_world_info()
-                if world_info.success and world_info.data:
-                    world_data = world_info.data
-                    world_status = "🟢 Online" if world_data.get('status') == 'online' else "🔴 Offline"
-                    embed.add_field(
-                        name="🌍 World Information",
-                        value=(
-                            "```ansi\n"
-                            f"\u001b[0;33mWorld\u001b[0m  : {world_data.get('name', 'N/A')}\n"
-                            f"\u001b[0;32mOwner\u001b[0m  : {world_data.get('owner', 'N/A')}\n"
-                            f"\u001b[0;36mStatus\u001b[0m : {world_status}\n"
-                            "```"
-                        ),
-                        inline=False
-                    )
-            except Exception as e:
-                self.logger.error(f"Error getting world info: {e}")
 
             try:
                 # Grouping products by category
@@ -245,25 +231,23 @@ class LiveStockManager(BaseLockHandler):
                 self.logger.error(f"Channel stock dengan ID {self.stock_channel_id} tidak ditemukan")
                 return False
 
+            embed = await self.create_stock_embed()
+
             if not self.current_stock_message:
-                # Buat pesan baru jika belum ada
-                embed = await self.create_stock_embed()
+                # Buat pesan baru dengan view jika belum ada
                 view = self.button_manager.create_view() if self.button_manager else None
                 self.current_stock_message = await channel.send(embed=embed, view=view)
                 return True
 
             try:
-                # Update existing message dengan mempertahankan view
-                existing_view = self.current_stock_message.view
-                embed = await self.create_stock_embed()
-                await self.current_stock_message.edit(embed=embed, view=existing_view)
+                # Update HANYA embed, biarkan view yang ada
+                await self.current_stock_message.edit(embed=embed)
                 return True
 
             except discord.NotFound:
                 self.logger.warning(MESSAGES.WARNING['MESSAGE_NOT_FOUND'])
                 self.current_stock_message = None
                 # Buat pesan baru karena pesan lama tidak ditemukan
-                embed = await self.create_stock_embed()
                 view = self.button_manager.create_view() if self.button_manager else None
                 self.current_stock_message = await channel.send(embed=embed, view=view)
                 return True
@@ -315,6 +299,8 @@ class LiveStockCog(commands.Cog):
         self._ready = asyncio.Event()
         self.update_stock_task = None
         self.logger.info("LiveStockCog instance created")
+        # Initialize stock manager
+        asyncio.create_task(self.stock_manager.initialize())
 
     async def start_tasks(self):
         """Start background tasks safely"""
@@ -402,6 +388,15 @@ async def setup(bot):
         if not hasattr(bot, COG_LOADED['LIVE_STOCK']):
             cog = LiveStockCog(bot)
             await bot.add_cog(cog)
+            
+            # Tunggu stock manager ready
+            try:
+                async with asyncio.timeout(5):  # 5 detik timeout
+                    await cog.stock_manager._ready.wait()
+            except asyncio.TimeoutError:
+                logging.error("Timeout waiting for stock manager initialization")
+                raise RuntimeError("Stock manager initialization timeout")
+                
             setattr(bot, COG_LOADED['LIVE_STOCK'], True)
             logging.info(f'LiveStock cog loaded at {datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")} UTC')
             return True
