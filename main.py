@@ -132,6 +132,13 @@ if not setup_logging():
     sys.exit(1)
 
 logger = logging.getLogger(__name__)
+
+# Setup logging
+if not setup_logging():
+    print("Failed to initialize logging system")
+    sys.exit(1)
+
+logger = logging.getLogger(__name__)
 def load_config():
     """Load and validate configuration"""
     required_keys = [
