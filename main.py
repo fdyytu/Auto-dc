@@ -52,12 +52,43 @@ from ext.cache_manager import CacheManager
 from ext.base_handler import BaseLockHandler, BaseResponseHandler
 from utils.command_handler import AdvancedCommandHandler
 
-# Initialize basic logging first
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler()]
-)
+def setup_logging():
+    """Setup logging configuration dengan proper handling"""
+    try:
+        # Buat folder logs jika belum ada
+        log_dir = Path(PATHS.LOGS)
+        log_dir.mkdir(exist_ok=True)
+        
+        # Reset handler yang ada untuk mencegah duplikasi
+        root_logger = logging.getLogger()
+        for handler in root_logger.handlers[:]:
+            root_logger.removeHandler(handler)
+            
+        # Setup format yang konsisten
+        formatter = logging.Formatter(LOGGING.FORMAT)
+        
+        # File handler dengan rotasi
+        file_handler = RotatingFileHandler(
+            log_dir / 'bot.log',
+            maxBytes=LOGGING.MAX_BYTES,
+            backupCount=LOGGING.BACKUP_COUNT,
+            encoding='utf-8'
+        )
+        file_handler.setFormatter(formatter)
+        
+        # Console handler
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(formatter)
+        
+        # Setup root logger
+        root_logger.setLevel(logging.INFO)
+        root_logger.addHandler(file_handler)
+        root_logger.addHandler(console_handler)
+        
+        return True
+    except Exception as e:
+        print(f"Failed to setup logging: {e}")
+        return False
 logger = logging.getLogger(__name__)
 
 def setup_project_structure():
@@ -99,20 +130,6 @@ setup_project_structure()
 # Setup enhanced logging
 log_dir = Path(PATHS.LOGS)
 log_dir.mkdir(exist_ok=True)
-
-logging.basicConfig(
-    level=logging.INFO,
-    format=LOGGING.FORMAT,
-    handlers=[
-        RotatingFileHandler(
-            log_dir / 'bot.log',
-            maxBytes=LOGGING.MAX_BYTES,
-            backupCount=LOGGING.BACKUP_COUNT,
-            encoding='utf-8'
-        ),
-        logging.StreamHandler()
-    ]
-)
 
 def load_config():
     """Load and validate configuration"""
