@@ -277,7 +277,7 @@ class StoreBot(commands.Bot):
             await self.change_presence(activity=activity)
 
             # Clear expired cache
-            await self.cache_manager.clear_expired()
+            await self.cache_manager.cleanup_expired()
 
             logger.info("Bot is fully ready!")
 
