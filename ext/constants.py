@@ -173,7 +173,8 @@ class EXTENSIONS:
         'cogs.automod',
         'cogs.tickets',
         'cogs.welcome', 
-        'cogs.leveling'
+        'cogs.leveling',
+        'cogs.admin'
     ]
     
     @classmethod
@@ -500,12 +501,20 @@ class LockError(Exception):
     """Raised when lock acquisition fails"""
     pass
 
-# Notification Channel IDs for Product Manager (New)
+# Notification Channel IDs for Product Manager
 class NOTIFICATION_CHANNELS:
     """Channel IDs untuk notifikasi sistem"""
-    TRANSACTIONS = 1348580531519881246      # Ganti dengan ID channel transaksi
-    PRODUCT_LOGS = 1348580616647610399     # Ganti dengan ID channel product logs
-    STOCK_LOGS = 1348580676202528839       # Ganti dengan ID channel stock logs
-    ADMIN_LOGS = 1348580745433710625       # Ganti dengan ID channel admin logs
-    ERROR_LOGS = 1348581120723128390       # Ganti dengan ID channel error logs
-    SHOP = 1319281983796547595            # Ganti dengan ID channel shop
+    TRANSACTIONS = 1348580531519881246
+    PRODUCT_LOGS = 1348580616647610399
+    STOCK_LOGS = 1348580676202528839
+    ADMIN_LOGS = 1348580745433710625
+    ERROR_LOGS = 1348581120723128390
+    SHOP = 1319281983796547595
+
+    @classmethod
+    def get(cls, channel_type: str, default=None):
+        """Get channel ID by type"""
+        try:
+            return getattr(cls, channel_type.upper(), default)
+        except AttributeError:
+            return default
