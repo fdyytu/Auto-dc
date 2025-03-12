@@ -508,7 +508,111 @@ class TransactionManager(BaseLockHandler):
             return TransactionResponse.error(MESSAGES.ERROR['TRANSACTION_FAILED'])
         finally:
             self.release_lock(f"withdrawal_{user_id}")
-
+            
+    async def get_transaction_history(
+        self,
+        user_id: str,
+        limit: int = 10,
+        offset: int = 0
+    ) -> TransactionResponse:
+        """
+        Get riwayat transaksi user dengan memperhatikan caching dan menghindari eksekusi ganda.
+        
+        Args:
+            user_id (str): Discord ID user
+            limit (int, optional): Jumlah maksimal transaksi. Defaults to 10.
+            offset (int, optional): Offset untuk pagination. Defaults to 0.
+            
+        Returns:
+            TransactionResponse: Response berisi list transaksi
+        """
+        try:
+            # Get GrowID dari BalanceManager (sudah termasuk caching)
+            growid_response = await self.balance_manager.get_growid(user_id)
+            if not growid_response.success:
+                return TransactionResponse.error(growid_response.error)
+            growid = growid_response.data
+    
+            # Get transaction history dari BalanceManager (sudah termasuk caching)
+            balance_trx_response = await self.balance_manager.get_transaction_history(growid, limit)
+            if not balance_trx_response.success:
+                return TransactionResponse.error(balance_trx_response.error)
+    
+            transactions = balance_trx_response.data
+            product_cache = {}  # Local cache untuk product info dalam satu request
+    
+            # Format transactions dengan additional info
+            formatted_transactions = []
+            for trx in transactions:
+                formatted_trx = dict(trx)
+                
+                # Format timestamp
+                created_at = datetime.fromisoformat(trx['created_at'].replace('Z', '+00:00'))
+                formatted_trx['formatted_date'] = created_at.strftime('%Y-%m-%d %H:%M')
+                
+                # Format balance changes
+                old_balance = Balance.from_string(trx['old_balance'])
+                new_balance = Balance.from_string(trx['new_balance'])
+                balance_change = new_balance.total_wl() - old_balance.total_wl()
+                
+                # Set amount display berdasarkan tipe transaksi
+                if trx['type'] in [TransactionType.PURCHASE.value, TransactionType.WITHDRAWAL.value]:
+                    formatted_trx['amount_display'] = f"-{Balance.from_wl(abs(balance_change)).format()}"
+                else:
+                    formatted_trx['amount_display'] = Balance.from_wl(balance_change).format()
+    
+                # Get product info jika transaksi purchase (menggunakan ProductManager cache)
+                if trx['type'] == TransactionType.PURCHASE.value and 'product_code' in trx:
+                    product_code = trx['product_code']
+                    
+                    if product_code in product_cache:
+                        product = product_cache[product_code]
+                    else:
+                        product_response = await self.product_manager.get_product(product_code)
+                        if product_response and isinstance(product_response, dict):
+                            product = product_response
+                            product_cache[product_code] = product
+                        else:
+                            product = None
+    
+                    if product:
+                        formatted_trx['product_name'] = product.get('name', 'Unknown Product')
+                        formatted_trx['product_price'] = product.get('price', 0)
+    
+                formatted_transactions.append(formatted_trx)
+    
+            # Prepare pagination info
+            total_count = len(balance_trx_response.data)
+            current_page = offset // limit + 1
+            total_pages = (total_count + limit - 1) // limit
+    
+            return TransactionResponse.success(
+                transaction_type='history',
+                data={
+                    'transactions': formatted_transactions[offset:offset + limit],
+                    'total_count': total_count,
+                    'current_page': current_page,
+                    'total_pages': total_pages,
+                    'has_more': total_count > (offset + limit)
+                },
+                message=f"Found {len(formatted_transactions)} transactions"
+            )
+    
+        except Exception as e:
+            self.logger.error(f"Error getting transaction history: {e}")
+            if isinstance(e, ProductError):
+                return TransactionResponse.error(
+                    MESSAGES.ERROR['PRODUCT_NOT_FOUND'],
+                    str(e)
+                )
+            return TransactionResponse.error(
+                MESSAGES.ERROR['DATABASE_ERROR'],
+                str(e)
+            )
+        finally:
+            if 'product_cache' in locals():
+                product_cache.clear()
+            
 class TransactionCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
