@@ -2,7 +2,7 @@
 Live Stock Manager
 Author: fdyyuk
 Created at: 2025-03-07 18:30:16 UTC
-Last Modified: 2025-03-08 16:06:22 UTC
+Last Modified: 2025-03-12 02:40:10 UTC
 
 Dependencies:
 - ext.product_manager: For product operations
@@ -18,6 +18,7 @@ import logging
 import asyncio
 from datetime import datetime
 from typing import Optional, Dict
+from discord import ui
 
 from .constants import (
     COLORS,
@@ -37,17 +38,8 @@ from .trx import TransactionManager
 from .admin_service import AdminService
 
 class LiveStockManager(BaseLockHandler):
-    _instance = None
-    _instance_lock = asyncio.Lock()
-
-    def __new__(cls, bot):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance.initialized = False
-        return cls._instance
-
     def __init__(self, bot):
-        if not self.initialized:
+        if not hasattr(self, 'initialized') or not self.initialized:
             super().__init__()
             self.bot = bot
             self.logger = logging.getLogger("LiveStockManager")
@@ -61,21 +53,25 @@ class LiveStockManager(BaseLockHandler):
 
             # Channel configuration
             self.stock_channel_id = int(self.bot.config.get('id_live_stock', 0))
-            self.current_stock_message: Optional[discord.Message] = None
+            self.current_stock_message = None
             self.button_manager = None
+            self._ready = asyncio.Event()
             self.initialized = True
+            self.logger.info("LiveStockManager initialized")
 
     async def set_button_manager(self, button_manager):
         """Set button manager untuk integrasi"""
         self.button_manager = button_manager
+        self._ready.set()
+        self.logger.info("Button manager set successfully")
 
     async def create_stock_embed(self) -> discord.Embed:
-        """Buat embed untuk display stock dengan data dari ProductManager"""
+        """Buat embed untuk display stock dengan tema modern"""
         try:
             # Check maintenance mode
             if await self.admin_service.is_maintenance_mode():
                 return discord.Embed(
-                    title="🔧 Maintenance Mode",
+                    title="🔧 Sistem dalam Maintenance",
                     description=MESSAGES.INFO['MAINTENANCE'],
                     color=COLORS.WARNING,
                     timestamp=datetime.utcnow()
@@ -98,73 +94,128 @@ class LiveStockManager(BaseLockHandler):
             else:
                 products = cached_products
 
+            # Create modern embed with dark theme
             embed = discord.Embed(
-                title="🏪 Live Stock Status",
+                title="🏪 Growtopia Shop Status",
                 description=(
-                    "```yml\n"
-                    "Selamat datang di Growtopia Shop!\n"
-                    "Stock dan harga diperbarui secara real-time\n"
+                    "```ansi\n"
+                    "\u001b[0;37mSelamat datang di \u001b[0;33mGrowtopia Shop\u001b[0m!\n"
+                    "\u001b[0;90mReal-time stock monitoring system\u001b[0m\n"
                     "```"
                 ),
-                color=COLORS.INFO
+                color=discord.Color.from_rgb(32, 34, 37)  # Discord dark theme color
             )
 
-            # Format waktu server
+            # Server time dengan format modern
             current_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
             embed.add_field(
-                name="🕒 Server Time",
-                value=f"```{current_time} UTC```",
+                name="⏰ Server Time",
+                value=f"```ansi\n\u001b[0;36m{current_time} UTC\u001b[0m```",
                 inline=False
             )
 
-            # Display products dengan format yang lebih rapi
-            for product in products:
-                try:
-                    # Get stock count dengan caching
-                    stock_cache_key = f'stock_count_{product["code"]}'
-                    stock_count = await self.cache_manager.get(stock_cache_key)
+            # Get world info if available
+            try:
+                world_info = await self.product_service.get_world_info()
+                if world_info.success and world_info.data:
+                    world_data = world_info.data
+                    world_status = "🟢 Online" if world_data.get('status') == 'online' else "🔴 Offline"
+                    embed.add_field(
+                        name="🌍 World Information",
+                        value=(
+                            "```ansi\n"
+                            f"\u001b[0;33mWorld\u001b[0m  : {world_data.get('name', 'N/A')}\n"
+                            f"\u001b[0;32mOwner\u001b[0m  : {world_data.get('owner', 'N/A')}\n"
+                            f"\u001b[0;36mStatus\u001b[0m : {world_status}\n"
+                            "```"
+                        ),
+                        inline=False
+                    )
+            except Exception as e:
+                self.logger.error(f"Error getting world info: {e}")
 
-                    if stock_count is None:
-                        stock_response = await self.product_service.get_stock_count(product['code'])
-                        if not stock_response.success:
+            try:
+                # Grouping products by category untuk tampilan yang lebih terorganisir
+                categories = {}
+                for product in products:
+                    category = product.get('category', 'Other')
+                    if category not in categories:
+                        categories[category] = []
+                    categories[category].append(product)
+
+                for category, category_products in categories.items():
+                    # Category header dengan styling
+                    category_header = f"\n__**{category}**__\n"
+                    category_items = []
+
+                    for product in category_products:
+                        try:
+                            # Get stock count dengan caching
+                            stock_cache_key = f'stock_count_{product["code"]}'
+                            stock_count = await self.cache_manager.get(stock_cache_key)
+
+                            if stock_count is None:
+                                stock_response = await self.product_service.get_stock_count(product['code'])
+                                if not stock_response.success:
+                                    continue
+                                stock_count = stock_response.data
+                                await self.cache_manager.set(
+                                    stock_cache_key,
+                                    stock_count,
+                                    expires_in=CACHE_TIMEOUT.get_seconds(CACHE_TIMEOUT.SHORT)
+                                )
+
+                            # Status indicators dengan warna
+                            if stock_count > Stock.ALERT_THRESHOLD:
+                                status_color = "32"  # Green
+                                status_emoji = "🟢"
+                            elif stock_count > 0:
+                                status_color = "33"  # Yellow
+                                status_emoji = "🟡"
+                            else:
+                                status_color = "31"  # Red
+                                status_emoji = "🔴"
+
+                            # Format price menggunakan currency rates
+                            price = float(product['price'])
+                            price_display = self._format_price(price)
+
+                            # Product display dengan ANSI formatting
+                            product_info = (
+                                f"```ansi\n"
+                                f"{status_emoji} \u001b[0;{status_color}m{product['name']}\u001b[0m\n"
+                                f"└─ Price : {price_display}\n"
+                                f"└─ Stock : {stock_count} unit\n"
+                            )
+
+                            if product.get('description'):
+                                product_info += f"└─ Info  : {product['description']}\n"
+
+                            product_info += "```"
+                            category_items.append(product_info)
+
+                        except Exception as e:
+                            self.logger.error(f"Error processing product {product.get('name', 'Unknown')}: {e}")
                             continue
-                        stock_count = stock_response.data
-                        await self.cache_manager.set(
-                            stock_cache_key,
-                            stock_count,
-                            expires_in=CACHE_TIMEOUT.get_seconds(CACHE_TIMEOUT.SHORT)
+
+                    if category_items:
+                        items_text = "\n".join(category_items)
+                        embed.add_field(
+                            name=category_header,
+                            value=items_text,
+                            inline=False
                         )
 
-                    # Status emoji based on stock level
-                    status_emoji = "🟢" if stock_count > Stock.ALERT_THRESHOLD else "🟡" if stock_count > 0 else "🔴"
+            except Exception as e:
+                self.logger.error(f"Error processing categories: {e}")
+                raise
 
-                    # Format price using currency rates from constants
-                    price = float(product['price'])
-                    price_display = self._format_price(price)
-
-                    field_value = (
-                        "```yml\n"
-                        f"Price : {price_display}\n"
-                        f"Stock : {stock_count} unit\n"
-                        "```"
-                    )
-
-                    # Add description if exists
-                    if product.get('description'):
-                        field_value = field_value[:-3] + f"Info  : {product['description']}\n```"
-
-                    embed.add_field(
-                        name=f"{status_emoji} {product['name']}",
-                        value=field_value,
-                        inline=True
-                    )
-
-                except Exception as e:
-                    self.logger.error(f"Error processing product {product.get('name', 'Unknown')}: {e}")
-                    continue
-
-            embed.set_footer(text=f"Auto-update setiap {int(UPDATE_INTERVAL.LIVE_STOCK)} detik")
+            # Footer dengan update info
+            embed.set_footer(
+                text=f"Auto-update every {int(UPDATE_INTERVAL.LIVE_STOCK)} seconds • Last Update"
+            )
             embed.timestamp = datetime.utcnow()
+
             return embed
 
         except Exception as e:
@@ -179,46 +230,58 @@ class LiveStockManager(BaseLockHandler):
         """Format price dengan currency rates dari constants"""
         try:
             if price >= CURRENCY_RATES['BGL']:
-                return f"{price/CURRENCY_RATES['BGL']:.1f} BGL"
+                return f"\u001b[0;35m{price/CURRENCY_RATES['BGL']:.1f} BGL\u001b[0m"
             elif price >= CURRENCY_RATES['DL']:
-                return f"{price/CURRENCY_RATES['DL']:.0f} DL"
-            return f"{int(price)} WL"
+                return f"\u001b[0;34m{price/CURRENCY_RATES['DL']:.0f} DL\u001b[0m"
+            return f"\u001b[0;32m{int(price)} WL\u001b[0m"
         except Exception:
             return "Invalid Price"
 
     async def update_stock_display(self) -> bool:
-        """Update tampilan stock dengan proper error handling"""
+        """Update tampilan stock tanpa mengirim pesan baru"""
         try:
-            if not self.current_stock_message or not self.button_manager:
-                channel = self.bot.get_channel(self.stock_channel_id)
-                if channel:
-                    embed = await self.create_stock_embed()
-                    self.current_stock_message = await channel.send(embed=embed)
-                    return True
+            channel = self.bot.get_channel(self.stock_channel_id)
+            if not channel:
+                self.logger.error(f"Channel stock dengan ID {self.stock_channel_id} tidak ditemukan")
                 return False
 
-            embed = await self.create_stock_embed()
-            await self.current_stock_message.edit(embed=embed)
-            return True
+            if not self.current_stock_message:
+                # Buat pesan baru jika belum ada
+                embed = await self.create_stock_embed()
+                view = self.button_manager.create_view() if self.button_manager else None
+                self.current_stock_message = await channel.send(embed=embed, view=view)
+                return True
 
-        except discord.NotFound:
-            self.logger.warning(MESSAGES.WARNING['MESSAGE_NOT_FOUND'])
-            self.current_stock_message = None
-            return False
+            try:
+                # Update existing message dengan mempertahankan view
+                existing_view = self.current_stock_message.view
+                embed = await self.create_stock_embed()
+                await self.current_stock_message.edit(embed=embed, view=existing_view)
+                return True
 
-        except discord.HTTPException as e:
-            self.logger.error(f"HTTP error updating stock display: {e}")
-            return False
+            except discord.NotFound:
+                self.logger.warning(MESSAGES.WARNING['MESSAGE_NOT_FOUND'])
+                self.current_stock_message = None
+                # Buat pesan baru karena pesan lama tidak ditemukan
+                embed = await self.create_stock_embed()
+                view = self.button_manager.create_view() if self.button_manager else None
+                self.current_stock_message = await channel.send(embed=embed, view=view)
+                return True
+
+            except discord.HTTPException as e:
+                self.logger.error(f"HTTP error updating stock display: {e}")
+                return False
 
         except Exception as e:
             self.logger.error(f"Error updating stock display: {e}")
             try:
-                error_embed = discord.Embed(
-                    title="❌ System Error",
-                    description=MESSAGES.ERROR['DISPLAY_ERROR'],
-                    color=COLORS.ERROR
-                )
-                await self.current_stock_message.edit(embed=error_embed)
+                if self.current_stock_message:
+                    error_embed = discord.Embed(
+                        title="❌ System Error",
+                        description=MESSAGES.ERROR['DISPLAY_ERROR'],
+                        color=COLORS.ERROR
+                    )
+                    await self.current_stock_message.edit(embed=error_embed)
             except:
                 pass
             return False
@@ -234,10 +297,11 @@ class LiveStockManager(BaseLockHandler):
                 )
                 await self.current_stock_message.edit(embed=embed)
 
-            # Clear caches
+            # Clear caches dengan pattern yang spesifik
             patterns = [
-                'all_products_display',
-                'stock_count_*'
+                'live_stock_*',
+                'stock_count_*',
+                'all_products_display'
             ]
             for pattern in patterns:
                 await self.cache_manager.delete_pattern(pattern)
@@ -247,87 +311,99 @@ class LiveStockManager(BaseLockHandler):
         except Exception as e:
             self.logger.error(f"Error in cleanup: {e}")
 
-
 class LiveStockCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.stock_manager = LiveStockManager(bot)
         self.logger = logging.getLogger("LiveStockCog")
+        self._ready = asyncio.Event()
+        self.update_stock_task = None
+        self.logger.info("LiveStockCog instance created")
+
+    async def start_tasks(self):
+        """Start background tasks safely"""
+        self.update_stock_task = self.update_stock.start()
+        self.logger.info("Stock update task started")
 
     async def cog_load(self):
         """Setup when cog is loaded"""
-        await self.bot.wait_until_ready()
-        self.update_stock.start()
+        try:
+            self.logger.info("LiveStockCog loading...")
+            await self.bot.wait_until_ready()
+            
+            # Initialize manager first
+            channel = self.bot.get_channel(self.stock_manager.stock_channel_id)
+            if not channel:
+                self.logger.error(f"Stock channel {self.stock_manager.stock_channel_id} not found")
+                return
 
-    def cog_unload(self):
-        self.update_stock.cancel()
-        asyncio.create_task(self.stock_manager.cleanup())
+            # Clean up old messages
+            try:
+                await channel.purge(limit=1)
+                self.logger.info("Channel cleaned")
+            except Exception as e:
+                self.logger.error(f"Error cleaning channel: {e}")
+
+            # Start tasks
+            await self.start_tasks()
+            self._ready.set()
+            self.logger.info("LiveStockCog loaded successfully")
+
+        except Exception as e:
+            self.logger.error(f"Error in cog_load: {e}")
+            raise
+
+    async def cog_unload(self):
+        """Cleanup when cog is unloaded"""
+        try:
+            if self.update_stock_task:
+                self.update_stock_task.cancel()
+            await self.stock_manager.cleanup()
+            self.logger.info("LiveStockCog unloaded")
+        except Exception as e:
+            self.logger.error(f"Error in cog_unload: {e}")
 
     @tasks.loop(seconds=UPDATE_INTERVAL.LIVE_STOCK)
     async def update_stock(self):
         """Update stock display periodically"""
+        if not self._ready.is_set():
+            return
+
         try:
-            # Dapatkan channel
-            channel = self.bot.get_channel(self.stock_manager.stock_channel_id)
-            if not channel:
-                self.logger.error(f"Channel stock dengan ID {self.stock_manager.stock_channel_id} tidak ditemukan")
-                return
-
-            # Update stock display
-            if not self.stock_manager.current_stock_message:
-                # Buat pesan baru jika belum ada
-                embed = await self.stock_manager.create_stock_embed()
-                view = self.stock_manager.button_manager.create_view() if self.stock_manager.button_manager else None
-                self.stock_manager.current_stock_message = await channel.send(embed=embed, view=view)
-            else:
-                # Update pesan yang ada dengan mempertahankan view
-                try:
-                    existing_view = self.stock_manager.current_stock_message.view
-                    embed = await self.stock_manager.create_stock_embed()
-                    await self.stock_manager.current_stock_message.edit(embed=embed, view=existing_view)
-                except discord.NotFound:
-                    # Pesan tidak ditemukan, buat pesan baru
-                    self.logger.warning("Pesan stock tidak ditemukan, membuat pesan baru...")
-                    self.stock_manager.current_stock_message = None
-                    embed = await self.stock_manager.create_stock_embed()
-                    view = self.stock_manager.button_manager.create_view() if self.stock_manager.button_manager else None
-                    self.stock_manager.current_stock_message = await channel.send(embed=embed, view=view)
-                except Exception as e:
-                    self.logger.error(f"Error updating stock message: {e}")
-
+            await self.stock_manager.update_stock_display()
         except Exception as e:
             self.logger.error(f"Error in stock update loop: {e}")
 
     @update_stock.before_loop
     async def before_update_stock(self):
-        """Wait until bot is ready"""
-        await self.bot.wait_until_ready()
-        # Pastikan channel ada
-        channel = self.bot.get_channel(self.stock_manager.stock_channel_id)
-        if not channel:
-            self.logger.error(f"Channel stock dengan ID {self.stock_manager.stock_channel_id} tidak ditemukan")
-            return
-        # Hapus pesan lama di channel jika ada
-        try:
-            await channel.purge(limit=1)
-        except Exception as e:
-            self.logger.error(f"Error clearing channel: {e}")
-
-    @update_stock.before_loop
-    async def before_update_stock(self):
-        """Wait until bot is ready"""
+        """Wait until bot is ready before starting the loop"""
         await self.bot.wait_until_ready()
 
 async def setup(bot):
     """Setup cog dengan proper error handling"""
-    if not hasattr(bot, COG_LOADED['LIVE_STOCK']):
-        try:
-            await bot.add_cog(LiveStockCog(bot))
+    try:
+        if not hasattr(bot, COG_LOADED['LIVE_STOCK']):
+            cog = LiveStockCog(bot)
+            await bot.add_cog(cog)
             setattr(bot, COG_LOADED['LIVE_STOCK'], True)
-            logging.info(
-                f'LiveStock cog loaded successfully at '
-                f'{datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")} UTC'
-            )
-        except Exception as e:
-            logging.error(f"Failed to load LiveStock cog: {e}")
-            raise
+            logging.info(f'LiveStock cog loaded at {datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")} UTC')
+            return True
+    except Exception as e:
+        logging.error(f"Failed to load LiveStock cog: {e}")
+        if hasattr(bot, COG_LOADED['LIVE_STOCK']):
+            delattr(bot, COG_LOADED['LIVE_STOCK'])
+        raise
+
+async def teardown(bot):
+    """Cleanup when extension is unloaded"""
+    try:
+        if hasattr(bot, COG_LOADED['LIVE_STOCK']):
+            cog = bot.get_cog('LiveStockCog')
+            if cog:
+                await bot.remove_cog('LiveStockCog')
+                if hasattr(cog, 'stock_manager'):
+                    await cog.stock_manager.cleanup()
+            delattr(bot, COG_LOADED['LIVE_STOCK'])
+            logging.info("LiveStock extension unloaded successfully")
+    except Exception as e:
+        logging.error(f"Error unloading LiveStock extension: {e}")
