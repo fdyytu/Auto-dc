@@ -12,6 +12,7 @@ from typing import Optional
 from core.config import config_manager
 from services.user_service import UserService
 from services.product_service import ProductService
+from services.world_service import WorldService
 from handlers.command_handler import CommandHandler
 from utils.formatters import message_formatter
 from utils.validators import input_validator
@@ -26,6 +27,7 @@ class AdminCog(commands.Cog):
         self.config = config_manager
         self.user_service = UserService(bot.db_manager)
         self.product_service = ProductService(bot.db_manager)
+        self.world_service = WorldService(bot.db_manager)
         self.command_handler = CommandHandler(self.user_service, self.product_service)
     
     async def cog_check(self, ctx: commands.Context) -> bool:
@@ -288,6 +290,148 @@ class AdminCog(commands.Cog):
         except Exception as e:
             logger.error(f"Error reloading all cogs: {e}")
             await ctx.send(embed=message_formatter.error_embed("Gagal reload semua cogs"))
+    
+    @commands.group(name="world", invoke_without_command=True)
+    async def world_group(self, ctx):
+        """Group command untuk world management"""
+        embed = discord.Embed(
+            title="🌍 World Management Commands",
+            description="Commands untuk mengelola world system",
+            color=0x00ff00
+        )
+        embed.add_field(
+            name="Commands:",
+            value="""
+            `!world add <world> <owner> <bot>` - Tambah world baru
+            `!world list` - Lihat semua world
+            `!world info <world>` - Info detail world
+            `!world update <world> [owner] [bot]` - Update world
+            `!world remove <world>` - Hapus world
+            """,
+            inline=False
+        )
+        await ctx.send(embed=embed)
+    
+    @world_group.command(name="add")
+    async def world_add(self, ctx, world_name: str, owner_name: str, bot_name: str):
+        """Tambah world baru"""
+        try:
+            response = await self.world_service.add_world(world_name, owner_name, bot_name)
+            
+            if response.success:
+                embed = message_formatter.success_embed(
+                    "World Ditambahkan",
+                    f"World: {world_name}\nOwner: {owner_name}\nBot: {bot_name}"
+                )
+                await ctx.send(embed=embed)
+            else:
+                await ctx.send(embed=message_formatter.error_embed(response.error))
+                
+        except Exception as e:
+            logger.error(f"Error adding world: {e}")
+            await ctx.send(embed=message_formatter.error_embed("Terjadi error"))
+    
+    @world_group.command(name="list")
+    async def world_list(self, ctx):
+        """Lihat semua world"""
+        try:
+            response = await self.world_service.get_all_worlds()
+            
+            if not response.success:
+                await ctx.send(embed=message_formatter.error_embed(response.error))
+                return
+            
+            worlds = response.data
+            if not worlds:
+                await ctx.send(embed=message_formatter.info_embed("Tidak ada world yang terdaftar"))
+                return
+            
+            embed = discord.Embed(
+                title="🌍 Daftar World",
+                color=0x00ff00
+            )
+            
+            for world in worlds:
+                embed.add_field(
+                    name=f"🌍 {world['world_name']}",
+                    value=f"Owner: {world['owner_name']}\nBot: {world['bot_name']}\nCreated: {world['created_at'][:10]}",
+                    inline=True
+                )
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error listing worlds: {e}")
+            await ctx.send(embed=message_formatter.error_embed("Terjadi error"))
+    
+    @world_group.command(name="info")
+    async def world_info(self, ctx, world_name: str):
+        """Info detail world"""
+        try:
+            response = await self.world_service.get_world(world_name)
+            
+            if not response.success:
+                await ctx.send(embed=message_formatter.error_embed(response.error))
+                return
+            
+            world = response.data
+            embed = discord.Embed(
+                title=f"🌍 {world['world_name']}",
+                color=0x00ff00
+            )
+            embed.add_field(name="Owner", value=world['owner_name'], inline=True)
+            embed.add_field(name="Bot", value=world['bot_name'], inline=True)
+            embed.add_field(name="Status", value="🟢 Active" if world['is_active'] else "🔴 Inactive", inline=True)
+            embed.add_field(name="Created", value=world['created_at'][:19], inline=True)
+            embed.add_field(name="Updated", value=world['updated_at'][:19], inline=True)
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error getting world info: {e}")
+            await ctx.send(embed=message_formatter.error_embed("Terjadi error"))
+    
+    @world_group.command(name="update")
+    async def world_update(self, ctx, world_name: str, owner_name: str = None, bot_name: str = None):
+        """Update world data"""
+        try:
+            if not owner_name and not bot_name:
+                await ctx.send(embed=message_formatter.error_embed("Minimal satu parameter harus diisi"))
+                return
+            
+            response = await self.world_service.update_world(world_name, owner_name, bot_name)
+            
+            if response.success:
+                embed = message_formatter.success_embed(
+                    "World Diupdate",
+                    f"World {world_name} berhasil diupdate"
+                )
+                await ctx.send(embed=embed)
+            else:
+                await ctx.send(embed=message_formatter.error_embed(response.error))
+                
+        except Exception as e:
+            logger.error(f"Error updating world: {e}")
+            await ctx.send(embed=message_formatter.error_embed("Terjadi error"))
+    
+    @world_group.command(name="remove")
+    async def world_remove(self, ctx, world_name: str):
+        """Hapus world"""
+        try:
+            response = await self.world_service.delete_world(world_name)
+            
+            if response.success:
+                embed = message_formatter.success_embed(
+                    "World Dihapus",
+                    f"World {world_name} berhasil dihapus"
+                )
+                await ctx.send(embed=embed)
+            else:
+                await ctx.send(embed=message_formatter.error_embed(response.error))
+                
+        except Exception as e:
+            logger.error(f"Error removing world: {e}")
+            await ctx.send(embed=message_formatter.error_embed("Terjadi error"))
 
 async def setup(bot):
     """Setup admin cog"""

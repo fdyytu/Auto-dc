@@ -21,26 +21,25 @@ from datetime import datetime
 from typing import List, Dict, Optional, Union
 from discord.ui import Select, Button, View, Modal, TextInput
 
-from .constants import (
+from config.constants.bot_constants import (
     COLORS,
     MESSAGES,
     BUTTON_IDS,
     CACHE_TIMEOUT,
-    Stock,
     Status,
-    CURRENCY_RATES,
     UPDATE_INTERVAL,
     COG_LOADED,
     TransactionType,
-    Balance
+    Balance,
+    CURRENCY_RATES
 )
 
-from .base_handler import BaseLockHandler
-from .cache_manager import CacheManager
-from .product_manager import ProductManagerService
-from .balance_manager import BalanceManagerService
-from .trx import TransactionManager
-from .admin_service import AdminService
+from utils.base_handler import BaseLockHandler
+from services.cache_service import CacheService
+from services.product_service import ProductService
+from services.balance_service import BalanceService
+from services.transaction_service import TransactionService
+from services.admin_service import AdminService
 
 class QuantityModal(Modal):
     def __init__(self, product_code: str, max_quantity: int):
@@ -63,9 +62,9 @@ class QuantityModal(Modal):
             if quantity <= 0:
                 raise ValueError(MESSAGES.ERROR['INVALID_AMOUNT'])
 
-            product_service = ProductManagerService(interaction.client)
-            balance_service = BalanceManagerService(interaction.client)
-            trx_manager = TransactionManager(interaction.client)
+            product_service = ProductService(interaction.client.db_manager)
+            balance_service = BalanceService(interaction.client.db_manager)
+            trx_manager = TransactionService(interaction.client.db_manager)
 
             # Get product details
             product_response = await product_service.get_product(self.product_code)
@@ -229,7 +228,7 @@ class RegisterModal(Modal):
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         try:
-            balance_service = BalanceManagerService(interaction.client)
+            balance_service = BalanceService(interaction.client.db_manager)
 
             growid = str(self.growid.value).strip().upper()
             if not growid or len(growid) < 3:
@@ -269,11 +268,11 @@ class ShopView(View):
     def __init__(self, bot):
         super().__init__(timeout=None)
         self.bot = bot
-        self.balance_service = BalanceManagerService(bot)
-        self.product_service = ProductManagerService(bot)
-        self.trx_manager = TransactionManager(bot)
-        self.admin_service = AdminService(bot)
-        self.cache_manager = CacheManager()
+        self.balance_service = BalanceService(bot.db_manager)
+        self.product_service = ProductService(bot.db_manager)
+        self.trx_manager = TransactionService(bot.db_manager)
+        self.admin_service = AdminService(bot.db_manager)
+        self.cache_manager = CacheService()
         self.logger = logging.getLogger("ShopView")
         self._interaction_locks = {}
         self._last_cleanup = datetime.utcnow()
@@ -789,8 +788,8 @@ class LiveButtonManager(BaseLockHandler):
             super().__init__()
             self.bot = bot
             self.logger = logging.getLogger("LiveButtonManager")
-            self.cache_manager = CacheManager()
-            self.admin_service = AdminService(bot)
+            self.cache_manager = CacheService()
+            self.admin_service = AdminService(bot.db_manager)
             self.stock_channel_id = int(self.bot.config.get('id_live_stock', 0))
             self.current_message = None
             self.stock_manager = None

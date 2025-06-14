@@ -20,22 +20,22 @@ from datetime import datetime
 from typing import Optional, Dict
 from discord import ui
 
-from .constants import (
+from config.constants.bot_constants import (
     COLORS,
     MESSAGES,
     UPDATE_INTERVAL,
     CACHE_TIMEOUT,
-    Stock,
     Status,
     CURRENCY_RATES,
-    COG_LOADED
+    COG_LOADED,
+    ALERT_THRESHOLD
 )
-from .base_handler import BaseLockHandler
-from .cache_manager import CacheManager
-from .product_manager import ProductManagerService
-from .balance_manager import BalanceManagerService 
-from .trx import TransactionManager
-from .admin_service import AdminService
+from utils.base_handler import BaseLockHandler
+from services.cache_service import CacheService
+from services.product_service import ProductService
+from services.balance_service import BalanceService
+from services.transaction_service import TransactionService
+from services.admin_service import AdminService
 
 class LiveStockManager(BaseLockHandler):
     def __init__(self, bot):
@@ -43,13 +43,13 @@ class LiveStockManager(BaseLockHandler):
             super().__init__()
             self.bot = bot
             self.logger = logging.getLogger("LiveStockManager")
-            self.cache_manager = CacheManager()
+            self.cache_manager = CacheService()
 
             # Initialize services
-            self.product_service = ProductManagerService(bot)
-            self.balance_service = BalanceManagerService(bot)
-            self.trx_manager = TransactionManager(bot)
-            self.admin_service = AdminService(bot)
+            self.product_service = ProductService(bot.db_manager)
+            self.balance_service = BalanceService(bot.db_manager)
+            self.trx_manager = TransactionService(bot.db_manager)
+            self.admin_service = AdminService(bot.db_manager)
 
             # Channel configuration
             self.stock_channel_id = int(self.bot.config.get('id_live_stock', 0))
@@ -170,7 +170,7 @@ class LiveStockManager(BaseLockHandler):
                                 )
 
                             # Status indicators dengan warna
-                            if stock_count > Stock.ALERT_THRESHOLD:
+                            if stock_count > ALERT_THRESHOLD:
                                 status_color = "32"  # Green
                                 status_emoji = "🟢"
                             elif stock_count > 0:

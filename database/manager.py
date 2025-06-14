@@ -325,6 +325,18 @@ class DatabaseManager:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        
+        # Worlds
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS worlds (
+                world_name TEXT PRIMARY KEY,
+                owner_name TEXT NOT NULL,
+                bot_name TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                is_active BOOLEAN DEFAULT 1
+            )
+        """)
     
     async def verify_database(self) -> bool:
         """Verifikasi integritas database"""
