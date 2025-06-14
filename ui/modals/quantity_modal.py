@@ -10,9 +10,9 @@ from discord.ui import Modal, TextInput
 import logging
 
 from config.constants import COLORS, MESSAGES
-from ext.product_manager import ProductManagerService
-from ext.balance_manager import BalanceManagerService
-from ext.trx import TransactionManager
+from services.product_service import ProductService
+from services.balance_service import BalanceService
+from services.transaction_service import TransactionService
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +37,9 @@ class QuantityModal(Modal):
             if quantity <= 0:
                 raise ValueError(MESSAGES.ERROR['INVALID_AMOUNT'])
 
-            product_service = ProductManagerService(interaction.client)
-            balance_service = BalanceManagerService(interaction.client)
-            trx_manager = TransactionManager(interaction.client)
+            product_service = ProductService(interaction.client.db_manager)
+            balance_service = BalanceService(interaction.client.db_manager)
+            trx_manager = TransactionService(interaction.client.db_manager)
 
             # Get product details
             product_response = await product_service.get_product(self.product_code)

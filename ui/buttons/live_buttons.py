@@ -35,7 +35,7 @@ from config.constants.bot_constants import (
 )
 
 from utils.base_handler import BaseLockHandler
-from services.cache_service import CacheService
+from services.cache_service import CacheManager
 from services.product_service import ProductService
 from services.balance_service import BalanceService
 from services.transaction_service import TransactionService
@@ -272,7 +272,7 @@ class ShopView(View):
         self.product_service = ProductService(bot.db_manager)
         self.trx_manager = TransactionService(bot.db_manager)
         self.admin_service = AdminService(bot.db_manager)
-        self.cache_manager = CacheService()
+        self.cache_manager = CacheManager()
         self.logger = logging.getLogger("ShopView")
         self._interaction_locks = {}
         self._last_cleanup = datetime.utcnow()
@@ -788,7 +788,7 @@ class LiveButtonManager(BaseLockHandler):
             super().__init__()
             self.bot = bot
             self.logger = logging.getLogger("LiveButtonManager")
-            self.cache_manager = CacheService()
+            self.cache_manager = CacheManager()
             self.admin_service = AdminService(bot.db_manager)
             self.stock_channel_id = int(self.bot.config.get('id_live_stock', 0))
             self.current_message = None

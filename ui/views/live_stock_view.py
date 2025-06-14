@@ -31,7 +31,7 @@ from config.constants.bot_constants import (
     ALERT_THRESHOLD
 )
 from utils.base_handler import BaseLockHandler
-from services.cache_service import CacheService
+from services.cache_service import CacheManager
 from services.product_service import ProductService
 from services.balance_service import BalanceService
 from services.transaction_service import TransactionService
@@ -43,7 +43,7 @@ class LiveStockManager(BaseLockHandler):
             super().__init__()
             self.bot = bot
             self.logger = logging.getLogger("LiveStockManager")
-            self.cache_manager = CacheService()
+            self.cache_manager = CacheManager()
 
             # Initialize services
             self.product_service = ProductService(bot.db_manager)

@@ -11,10 +11,10 @@ from datetime import datetime
 
 from config.constants import MESSAGES, COLORS
 from data.models.balance import Balance
-from ext.product_manager import ProductManagerService
-from ext.balance_manager import BalanceManagerService
-from ext.trx import TransactionManager
-from ext.admin_service import AdminService
+from services.product_service import ProductService
+from services.balance_service import BalanceService
+from services.transaction_service import TransactionService
+from services.admin_service import AdminService
 
 logger = logging.getLogger(__name__)
 
@@ -23,10 +23,10 @@ class ShopService:
     
     def __init__(self, bot):
         self.bot = bot
-        self.product_service = ProductManagerService(bot)
-        self.balance_service = BalanceManagerService(bot)
-        self.trx_manager = TransactionManager(bot)
-        self.admin_service = AdminService(bot)
+        self.product_service = ProductService(bot.db_manager)
+        self.balance_service = BalanceService(bot.db_manager)
+        self.trx_manager = TransactionService(bot.db_manager)
+        self.admin_service = AdminService(bot.db_manager)
         self.logger = logger
 
     async def get_available_products(self) -> Dict:
