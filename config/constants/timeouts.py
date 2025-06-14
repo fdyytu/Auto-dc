@@ -50,7 +50,7 @@ COG_LOADED = {
 
 # Update Intervals
 class UPDATE_INTERVAL:
-    LIVE_STOCK = 55.0    # Update live stock every 55 seconds
+    LIVE_STOCK = 10.0    # Update live stock every 10 seconds (real-time)
     BUTTONS = 30.0       # Update buttons every 30 seconds
     CACHE = 300.0        # Cache timeout 5 minutes
     STATUS = 15.0        # Status update every 15 seconds
