@@ -30,6 +30,7 @@ from config.constants.bot_constants import (
     COG_LOADED,
     Stock
 )
+from config.logging_config import get_logger
 from utils.base_handler import BaseLockHandler
 from services.cache_service import CacheManager
 from services.product_service import ProductService
@@ -42,7 +43,7 @@ class LiveStockManager(BaseLockHandler):
         if not hasattr(self, 'initialized') or not self.initialized:
             super().__init__()
             self.bot = bot
-            self.logger = logging.getLogger("LiveStockManager")
+            self.logger = get_logger("LiveStockManager")
             self.cache_manager = CacheManager()
 
             # Initialize services
@@ -312,7 +313,7 @@ class LiveStockCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.stock_manager = LiveStockManager(bot)
-        self.logger = logging.getLogger("LiveStockCog")
+        self.logger = get_logger("LiveStockCog")
         self._ready = asyncio.Event()
         self.update_stock_task = None
         self.logger.info("LiveStockCog instance created")
@@ -384,14 +385,21 @@ class LiveStockCog(commands.Cog):
 
     @tasks.loop(seconds=UPDATE_INTERVAL.LIVE_STOCK)
     async def update_stock(self):
-        """Update stock display periodically"""
+        """Update stock display periodically with better error handling"""
         if not self._ready.is_set():
+            self.logger.debug("Stock manager not ready, skipping update")
             return
 
         try:
+            self.logger.debug(f"Running stock update loop (interval: {UPDATE_INTERVAL.LIVE_STOCK}s)")
             await self.stock_manager.update_stock_display()
+            self.logger.debug("Stock update completed successfully")
         except Exception as e:
-            self.logger.error(f"Error in stock update loop: {e}")
+            self.logger.error(f"Error in stock update loop: {e}", exc_info=True)
+            # Try to restart the task if it fails
+            if not self.update_stock.is_running():
+                self.logger.info("Restarting stock update task...")
+                self.update_stock.restart()
 
     @update_stock.before_loop
     async def before_update_stock(self):
@@ -400,7 +408,7 @@ class LiveStockCog(commands.Cog):
 
 async def setup(bot):
     """Setup cog dengan proper error handling"""
-    logger = logging.getLogger("LiveStockCog.setup")
+    logger = get_logger("LiveStockCog.setup")
     try:
         if not hasattr(bot, COG_LOADED['LIVE_STOCK']):
             logger.info("Setting up LiveStockCog...")

@@ -18,7 +18,7 @@ project_root = Path(__file__).parent
 sys.path.append(str(project_root))
 
 # Import core modules
-from core.logging import logging_manager
+from config.logging_config import setup_centralized_logging, get_logger
 from core.startup import startup_manager
 from core.bot import StoreBot
 
@@ -29,11 +29,11 @@ async def main():
         load_dotenv()
         
         # Setup logging
-        if not logging_manager.setup_logging():
+        if not setup_centralized_logging():
             print("Gagal setup logging system")
             sys.exit(1)
         
-        logger = logging.getLogger(__name__)
+        logger = get_logger(__name__)
         logger.info("Memulai Discord Bot...")
         
         # Jalankan startup checks

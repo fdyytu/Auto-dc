@@ -673,14 +673,9 @@ def verify_database():
                 logger.error(f"Error closing connection during verification: {e}")
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.StreamHandler(),
-            logging.FileHandler('database.log')
-        ]
-    )
+    # Use centralized logging instead of separate database.log
+    from config.logging_config import setup_centralized_logging
+    setup_centralized_logging()
     
     try:
         # Cek apakah database sudah ada dan valid
