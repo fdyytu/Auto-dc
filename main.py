@@ -11,6 +11,7 @@ import sys
 import asyncio
 import logging
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Add project root to Python path
 project_root = Path(__file__).parent
@@ -24,6 +25,9 @@ from core.bot import StoreBot
 async def main():
     """Fungsi utama untuk menjalankan bot"""
     try:
+        # Load environment variables
+        load_dotenv()
+        
         # Setup logging
         if not logging_manager.setup_logging():
             print("Gagal setup logging system")

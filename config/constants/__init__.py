@@ -21,8 +21,8 @@ from .exceptions import (
     NOTIFICATION_CHANNELS
 )
 
-# Import Balance dari data.models
-from ...data.models.balance import Balance
+# Import Balance dari bot_constants
+from .bot_constants import Balance
 
 __all__ = [
     # Timeouts & Versions

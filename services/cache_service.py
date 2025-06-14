@@ -15,7 +15,7 @@ from database import get_connection
 import asyncio
 from functools import wraps
 
-from .constants import CACHE_TIMEOUT, Balance
+from config.constants.bot_constants import CACHE_TIMEOUT, Balance
 
 logger = logging.getLogger(__name__)
 

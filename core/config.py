@@ -5,6 +5,7 @@ Menangani loading dan validasi konfigurasi bot
 
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Dict, Any, List
 
@@ -29,6 +30,12 @@ class ConfigManager:
             
             with open(self.config_path, 'r', encoding='utf-8') as f:
                 self._config = json.load(f)
+            
+            # Override token from environment variable if available
+            env_token = os.getenv('DISCORD_TOKEN')
+            if env_token:
+                self._config['token'] = env_token
+                logger.info("Token dimuat dari environment variable")
             
             self._validate_config()
             logger.info("Konfigurasi berhasil dimuat")

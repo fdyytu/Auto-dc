@@ -1,0 +1,123 @@
+2025-06-14 12:58:15,152 - root - INFO - Sistem logging berhasil diinisialisasi
+2025-06-14 12:58:15,152 - __main__ - INFO - Memulai Discord Bot...
+2025-06-14 12:58:15,152 - core.startup - INFO - Memulai startup checks...
+2025-06-14 12:58:15,152 - core.startup - INFO - Menjalankan Permission Check...
+2025-06-14 12:58:15,152 - core.startup - INFO - Permission check berhasil
+2025-06-14 12:58:15,153 - core.startup - INFO - Menjalankan Dependency Check...
+2025-06-14 12:58:15,153 - core.startup - WARNING - ⚠ PyNaCl tidak ditemukan (opsional)
+2025-06-14 12:58:15,153 - core.startup - INFO - Semua dependency tersedia
+2025-06-14 12:58:15,153 - core.startup - INFO - Menjalankan Project Structure...
+2025-06-14 12:58:15,154 - core.startup - INFO - Struktur project berhasil disiapkan
+2025-06-14 12:58:15,154 - core.startup - INFO - Semua startup checks berhasil
+2025-06-14 12:58:15,154 - core.config - INFO - Konfigurasi berhasil dimuat
+2025-06-14 12:58:15,154 - discord.client - WARNING - PyNaCl is not installed, voice will NOT be supported
+2025-06-14 12:58:15,155 - discord.client - INFO - logging in using static token
+2025-06-14 12:58:15,565 - core.bot - INFO - Memulai setup bot...
+2025-06-14 12:58:15,572 - database.migrations - INFO - Database setup berhasil
+2025-06-14 12:58:15,575 - database.connection - INFO - Database berhasil diinisialisasi
+2025-06-14 12:58:15,588 - cogs.admin - INFO - Admin cog loaded successfully
+2025-06-14 12:58:15,588 - core.bot - INFO - ✓ Loaded: cogs.admin
+2025-06-14 12:58:15,602 - core.bot - INFO - ✓ Loaded: cogs.automod
+2025-06-14 12:58:15,605 - core.bot - WARNING - ✗ Failed to load cogs.help_manager: Extension 'cogs.help_manager' raised an error: ModuleNotFoundError: No module named 'ext.constants'
+2025-06-14 12:58:15,617 - cogs.leveling - INFO - Leveling tables created successfully
+2025-06-14 12:58:15,618 - core.bot - INFO - ✓ Loaded: cogs.leveling
+2025-06-14 12:58:15,621 - core.bot - WARNING - ✗ Failed to load cogs.logging_handler: Extension 'cogs.logging_handler' raised an error: ModuleNotFoundError: No module named 'colorama'
+2025-06-14 12:58:15,626 - core.bot - WARNING - ✗ Failed to load cogs.management: Extension 'cogs.management' raised an error: CommandRegistrationError: The command bots is already an existing command or alias.
+2025-06-14 12:58:15,636 - cogs.reputation - INFO - Reputation tables created successfully
+2025-06-14 12:58:15,638 - cogs.reputation - INFO - Reputation tables created successfully
+2025-06-14 12:58:15,638 - core.bot - INFO - ✓ Loaded: cogs.reputation
+2025-06-14 12:58:16,414 - matplotlib.font_manager - INFO - Failed to extract font properties from /usr/share/fonts/truetype/unifont/unifont_sample.ttf: Could not set the fontsize (invalid pixel size; error code 0x17)
+2025-06-14 12:58:16,469 - matplotlib.font_manager - INFO - Failed to extract font properties from /usr/share/fonts/truetype/noto/NotoColorEmoji.ttf: Can not load face (unknown file format; error code 0x2)
+2025-06-14 12:58:16,559 - matplotlib.font_manager - INFO - generated new fontManager
+2025-06-14 12:58:17,527 - core.bot - INFO - ✓ Loaded: cogs.stats
+2025-06-14 12:58:17,540 - cogs.utils - INFO - Ticket system tables setup completed successfully
+2025-06-14 12:58:17,542 - core.bot - INFO - ✓ Loaded: cogs.tickets
+2025-06-14 12:58:17,591 - core.bot - INFO - ✓ Loaded: cogs.welcome
+2025-06-14 12:58:17,591 - core.bot - INFO - Setup bot selesai
+2025-06-14 12:58:17,958 - discord.gateway - INFO - Shard ID None has connected to Gateway (Session ID: c0690e6b4a9284269b57e306cd8f6058).
+2025-06-14 12:58:19,962 - core.bot - INFO - Bot login sebagai FDY STORE (1317906405440884871)
+2025-06-14 12:58:19,962 - core.bot - ERROR - Channel Live Stock tidak ditemukan: 1318806350310146114
+2025-06-14 12:58:19,962 - core.bot - ERROR - Channel Purchase Log tidak ditemukan: 1318806351228698683
+2025-06-14 12:58:19,962 - core.bot - ERROR - Channel Donation Log tidak ditemukan: 1318806351228698680
+2025-06-14 12:58:19,962 - core.bot - ERROR - Channel Purchase History tidak ditemukan: 1318806351228698682
+2025-06-14 12:58:19,964 - core.bot - INFO - Bot siap digunakan!
+2025-06-14 13:00:35,981 - root - INFO - Sistem logging berhasil diinisialisasi
+2025-06-14 13:00:35,981 - __main__ - INFO - Memulai Discord Bot...
+2025-06-14 13:00:35,981 - core.startup - INFO - Memulai startup checks...
+2025-06-14 13:00:35,981 - core.startup - INFO - Menjalankan Permission Check...
+2025-06-14 13:00:35,981 - core.startup - INFO - Permission check berhasil
+2025-06-14 13:00:35,981 - core.startup - INFO - Menjalankan Dependency Check...
+2025-06-14 13:00:35,982 - core.startup - WARNING - ⚠ PyNaCl tidak ditemukan (opsional)
+2025-06-14 13:00:35,982 - core.startup - INFO - Semua dependency tersedia
+2025-06-14 13:00:35,982 - core.startup - INFO - Menjalankan Project Structure...
+2025-06-14 13:00:35,982 - core.startup - INFO - Struktur project berhasil disiapkan
+2025-06-14 13:00:35,982 - core.startup - INFO - Semua startup checks berhasil
+2025-06-14 13:00:35,982 - core.config - INFO - Token dimuat dari environment variable
+2025-06-14 13:00:35,982 - core.config - INFO - Konfigurasi berhasil dimuat
+2025-06-14 13:00:35,983 - discord.client - WARNING - PyNaCl is not installed, voice will NOT be supported
+2025-06-14 13:00:35,983 - discord.client - INFO - logging in using static token
+2025-06-14 13:00:36,461 - core.bot - INFO - Memulai setup bot...
+2025-06-14 13:00:36,463 - database.connection - INFO - Database berhasil diinisialisasi
+2025-06-14 13:00:36,467 - cogs.admin - INFO - Admin cog loaded successfully
+2025-06-14 13:00:36,467 - core.bot - INFO - ✓ Loaded: cogs.admin
+2025-06-14 13:00:36,473 - core.bot - INFO - ✓ Loaded: cogs.automod
+2025-06-14 13:00:36,473 - core.bot - WARNING - ✗ Failed to load cogs.help_manager: Extension 'cogs.help_manager' raised an error: ModuleNotFoundError: No module named 'ext.constants'
+2025-06-14 13:00:36,478 - cogs.leveling - INFO - Leveling tables created successfully
+2025-06-14 13:00:36,478 - core.bot - INFO - ✓ Loaded: cogs.leveling
+2025-06-14 13:00:36,479 - core.bot - WARNING - ✗ Failed to load cogs.logging_handler: Extension 'cogs.logging_handler' raised an error: ModuleNotFoundError: No module named 'colorama'
+2025-06-14 13:00:36,480 - core.bot - WARNING - ✗ Failed to load cogs.management: Extension 'cogs.management' raised an error: CommandRegistrationError: The command bots is already an existing command or alias.
+2025-06-14 13:00:36,484 - cogs.reputation - INFO - Reputation tables created successfully
+2025-06-14 13:00:36,485 - cogs.reputation - INFO - Reputation tables created successfully
+2025-06-14 13:00:36,485 - core.bot - INFO - ✓ Loaded: cogs.reputation
+2025-06-14 13:00:37,309 - core.bot - INFO - ✓ Loaded: cogs.stats
+2025-06-14 13:00:37,313 - cogs.utils - INFO - Ticket system tables setup completed successfully
+2025-06-14 13:00:37,313 - core.bot - INFO - ✓ Loaded: cogs.tickets
+2025-06-14 13:00:37,320 - core.bot - INFO - ✓ Loaded: cogs.welcome
+2025-06-14 13:00:37,320 - core.bot - INFO - Setup bot selesai
+2025-06-14 13:00:37,746 - discord.gateway - INFO - Shard ID None has connected to Gateway (Session ID: 7f550eaa444e437e94bdca864a9616b9).
+2025-06-14 13:00:39,750 - core.bot - INFO - Bot login sebagai FDY STORE (1317906405440884871)
+2025-06-14 13:00:39,750 - core.bot - ERROR - Channel Live Stock tidak ditemukan: 1318806350310146114
+2025-06-14 13:00:39,750 - core.bot - ERROR - Channel Purchase Log tidak ditemukan: 1318806351228698683
+2025-06-14 13:00:39,750 - core.bot - ERROR - Channel Donation Log tidak ditemukan: 1318806351228698680
+2025-06-14 13:00:39,750 - core.bot - ERROR - Channel Purchase History tidak ditemukan: 1318806351228698682
+2025-06-14 13:00:39,752 - core.bot - INFO - Bot siap digunakan!
+2025-06-14 13:03:34,237 - root - INFO - Sistem logging berhasil diinisialisasi
+2025-06-14 13:03:34,237 - __main__ - INFO - Memulai Discord Bot...
+2025-06-14 13:03:34,237 - core.startup - INFO - Memulai startup checks...
+2025-06-14 13:03:34,237 - core.startup - INFO - Menjalankan Permission Check...
+2025-06-14 13:03:34,237 - core.startup - INFO - Permission check berhasil
+2025-06-14 13:03:34,237 - core.startup - INFO - Menjalankan Dependency Check...
+2025-06-14 13:03:34,237 - core.startup - WARNING - ⚠ PyNaCl tidak ditemukan (opsional)
+2025-06-14 13:03:34,237 - core.startup - INFO - Semua dependency tersedia
+2025-06-14 13:03:34,238 - core.startup - INFO - Menjalankan Project Structure...
+2025-06-14 13:03:34,238 - core.startup - INFO - Struktur project berhasil disiapkan
+2025-06-14 13:03:34,238 - core.startup - INFO - Semua startup checks berhasil
+2025-06-14 13:03:34,238 - core.config - INFO - Token dimuat dari environment variable
+2025-06-14 13:03:34,238 - core.config - INFO - Konfigurasi berhasil dimuat
+2025-06-14 13:03:34,239 - discord.client - WARNING - PyNaCl is not installed, voice will NOT be supported
+2025-06-14 13:03:34,239 - discord.client - INFO - logging in using static token
+2025-06-14 13:03:34,693 - core.bot - INFO - Memulai setup bot...
+2025-06-14 13:03:34,696 - database.connection - INFO - Database berhasil diinisialisasi
+2025-06-14 13:03:34,708 - cogs.admin - INFO - Admin cog loaded successfully
+2025-06-14 13:03:34,709 - core.bot - INFO - ✓ Loaded: cogs.admin
+2025-06-14 13:03:34,713 - core.bot - INFO - ✓ Loaded: cogs.automod
+2025-06-14 13:03:34,713 - core.bot - WARNING - ✗ Failed to load cogs.help_manager: Extension 'cogs.help_manager' raised an error: ModuleNotFoundError: No module named 'ext.constants'
+2025-06-14 13:03:34,717 - cogs.leveling - INFO - Leveling tables created successfully
+2025-06-14 13:03:34,718 - core.bot - INFO - ✓ Loaded: cogs.leveling
+2025-06-14 13:03:34,718 - core.bot - WARNING - ✗ Failed to load cogs.logging_handler: Extension 'cogs.logging_handler' raised an error: ModuleNotFoundError: No module named 'colorama'
+2025-06-14 13:03:34,720 - core.bot - WARNING - ✗ Failed to load cogs.management: Extension 'cogs.management' raised an error: CommandRegistrationError: The command bots is already an existing command or alias.
+2025-06-14 13:03:34,724 - cogs.reputation - INFO - Reputation tables created successfully
+2025-06-14 13:03:34,724 - cogs.reputation - INFO - Reputation tables created successfully
+2025-06-14 13:03:34,725 - core.bot - INFO - ✓ Loaded: cogs.reputation
+2025-06-14 13:03:35,493 - core.bot - INFO - ✓ Loaded: cogs.stats
+2025-06-14 13:03:35,497 - cogs.utils - INFO - Ticket system tables setup completed successfully
+2025-06-14 13:03:35,498 - core.bot - INFO - ✓ Loaded: cogs.tickets
+2025-06-14 13:03:35,504 - core.bot - INFO - ✓ Loaded: cogs.welcome
+2025-06-14 13:03:35,504 - core.bot - INFO - Setup bot selesai
+2025-06-14 13:03:35,901 - discord.gateway - INFO - Shard ID None has connected to Gateway (Session ID: 186c0e1e5074dc6c08d4d71d3f58548a).
+2025-06-14 13:03:37,905 - core.bot - INFO - Bot login sebagai FDY STORE (1317906405440884871)
+2025-06-14 13:03:37,905 - core.bot - ERROR - Channel Live Stock tidak ditemukan: 1318806350310146114
+2025-06-14 13:03:37,905 - core.bot - ERROR - Channel Purchase Log tidak ditemukan: 1318806351228698683
+2025-06-14 13:03:37,905 - core.bot - ERROR - Channel Donation Log tidak ditemukan: 1318806351228698680
+2025-06-14 13:03:37,905 - core.bot - ERROR - Channel Purchase History tidak ditemukan: 1318806351228698682
+2025-06-14 13:03:37,907 - core.bot - INFO - Bot siap digunakan!

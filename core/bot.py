@@ -11,7 +11,7 @@ from typing import Optional
 
 from core.config import config_manager
 from core.logging import logging_manager
-from ext.cache_manager import CacheManager
+from services.cache_service import CacheManager
 from database.connection import DatabaseManager
 
 logger = logging.getLogger(__name__)
@@ -69,9 +69,7 @@ class StoreBot(commands.Bot):
             'cogs.admin', 'cogs.automod', 'cogs.help_manager',
             'cogs.leveling', 'cogs.logging_handler', 'cogs.management',
             'cogs.reputation', 'cogs.stats', 'cogs.tickets',
-            'cogs.welcome', 'ext.admin_service', 'ext.balance_manager',
-            'ext.donate', 'ext.live_buttons', 'ext.live_stock',
-            'ext.product_manager', 'ext.trx'
+            'cogs.welcome'
         ]
         
         for ext in extensions:
