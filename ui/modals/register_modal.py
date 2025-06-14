@@ -10,7 +10,7 @@ from discord.ui import Modal, TextInput
 import logging
 
 from config.constants import COLORS, MESSAGES
-from ext.balance_manager import BalanceManagerService
+from services.balance_service import BalanceManagerService
 
 logger = logging.getLogger(__name__)
 

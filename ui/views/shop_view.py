@@ -16,8 +16,8 @@ from typing import Dict
 from config.constants import COLORS, MESSAGES, BUTTON_IDS, CURRENCY_RATES
 from data.models.balance import Balance
 from services.product_service import ProductService
-from services.balance_service import BalanceService
-from services.transaction_service import TransactionService
+from services.balance_service import BalanceManagerService
+from services.transaction_service import TransactionManager
 from services.admin_service import AdminService
 from services.cache_service import CacheManager
 from ui.modals.register_modal import RegisterModal
@@ -29,9 +29,9 @@ class ShopView(View):
     def __init__(self, bot):
         super().__init__(timeout=None)
         self.bot = bot
-        self.balance_service = BalanceService(bot.db_manager)
+        self.balance_service = BalanceManagerService(bot)
         self.product_service = ProductService(bot.db_manager)
-        self.trx_manager = TransactionService(bot.db_manager)
+        self.trx_manager = TransactionManager(bot)
         self.admin_service = AdminService(bot.db_manager)
         self.cache_manager = CacheManager()
         self.logger = logging.getLogger("ShopView")
