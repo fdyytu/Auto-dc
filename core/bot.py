@@ -11,6 +11,7 @@ from typing import Optional
 
 from core.config import config_manager
 from core.logging import logging_manager
+from core.hot_reload import HotReloadManager
 from services.cache_service import CacheManager
 from database.connection import DatabaseManager
 
@@ -40,6 +41,7 @@ class StoreBot(commands.Bot):
         # Initialize managers
         self.cache_manager = CacheManager()
         self.db_manager = DatabaseManager()
+        self.hot_reload_manager = HotReloadManager(self)
         
         # Status tracking
         self._ready = asyncio.Event()
@@ -97,6 +99,9 @@ class StoreBot(commands.Bot):
             # Cleanup cache
             await self.cache_manager.cleanup_expired()
             
+            # Start hot reload manager
+            await self.hot_reload_manager.start()
+            
             self._setup_done = True
             self._ready.set()
             logger.info("Bot siap digunakan!")
@@ -126,6 +131,9 @@ class StoreBot(commands.Bot):
             
             if hasattr(self, 'cache_manager'):
                 await self.cache_manager.clear_all()
+            
+            if hasattr(self, 'hot_reload_manager'):
+                await self.hot_reload_manager.stop()
             
             if hasattr(self, 'db_manager'):
                 await self.db_manager.close()

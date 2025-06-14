@@ -121,3 +121,183 @@
 2025-06-14 13:03:37,905 - core.bot - ERROR - Channel Donation Log tidak ditemukan: 1318806351228698680
 2025-06-14 13:03:37,905 - core.bot - ERROR - Channel Purchase History tidak ditemukan: 1318806351228698682
 2025-06-14 13:03:37,907 - core.bot - INFO - Bot siap digunakan!
+2025-06-14 13:29:53,078 - root - INFO - Sistem logging berhasil diinisialisasi
+2025-06-14 13:29:53,078 - __main__ - INFO - Memulai Discord Bot...
+2025-06-14 13:29:53,078 - core.startup - INFO - Memulai startup checks...
+2025-06-14 13:29:53,078 - core.startup - INFO - Menjalankan Permission Check...
+2025-06-14 13:29:53,078 - core.startup - INFO - Permission check berhasil
+2025-06-14 13:29:53,078 - core.startup - INFO - Menjalankan Dependency Check...
+2025-06-14 13:29:53,079 - core.startup - WARNING - ⚠ PyNaCl tidak ditemukan (opsional)
+2025-06-14 13:29:53,079 - core.startup - INFO - Semua dependency tersedia
+2025-06-14 13:29:53,079 - core.startup - INFO - Menjalankan Project Structure...
+2025-06-14 13:29:53,079 - core.startup - INFO - Struktur project berhasil disiapkan
+2025-06-14 13:29:53,079 - core.startup - INFO - Semua startup checks berhasil
+2025-06-14 13:29:53,079 - core.config - INFO - Token dimuat dari environment variable
+2025-06-14 13:29:53,080 - core.config - INFO - Konfigurasi berhasil dimuat
+2025-06-14 13:29:53,080 - discord.client - WARNING - PyNaCl is not installed, voice will NOT be supported
+2025-06-14 13:29:53,080 - core.config - INFO - Token dimuat dari environment variable
+2025-06-14 13:29:53,080 - core.config - INFO - Konfigurasi berhasil dimuat
+2025-06-14 13:29:53,081 - discord.client - INFO - logging in using static token
+2025-06-14 13:29:53,271 - core.bot - INFO - Memulai shutdown bot...
+2025-06-14 13:29:53,275 - CacheManager - ERROR - Error clearing cache: no such table: cache
+2025-06-14 13:29:53,276 - core.bot - ERROR - Error saat shutdown: no such table: cache
+2025-06-14 13:29:53,276 - __main__ - CRITICAL - Bot crash: Improper token has been passed.
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.10/dist-packages/discord/http.py", line 828, in static_login
+    data = await self.request(Route('GET', '/users/@me'))
+  File "/usr/local/lib/python3.10/dist-packages/discord/http.py", line 762, in request
+    raise HTTPException(response, data)
+discord.errors.HTTPException: 401 Unauthorized (error code: 0): 401: Unauthorized
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/user/workspace/main.py", line 48, in main
+    await bot.start(bot.config['token'])
+  File "/usr/local/lib/python3.10/dist-packages/discord/client.py", line 823, in start
+    await self.login(token)
+  File "/usr/local/lib/python3.10/dist-packages/discord/client.py", line 652, in login
+    data = await self.http.static_login(token)
+  File "/usr/local/lib/python3.10/dist-packages/discord/http.py", line 832, in static_login
+    raise LoginFailure('Improper token has been passed.') from exc
+discord.errors.LoginFailure: Improper token has been passed.
+2025-06-14 13:29:53,278 - core.bot - INFO - Memulai shutdown bot...
+2025-06-14 13:29:53,278 - CacheManager - ERROR - Error clearing cache: no such table: cache
+2025-06-14 13:29:53,278 - core.bot - ERROR - Error saat shutdown: no such table: cache
+2025-06-14 13:29:53,296 - asyncio - ERROR - Unclosed connector
+connections: ['deque([(<aiohttp.client_proto.ResponseHandler object at 0x7ff28416fd60>, 306.722076376)])']
+connector: <aiohttp.connector.TCPConnector object at 0x7ff28419dd80>
+2025-06-14 13:29:53,296 - asyncio - ERROR - Fatal error on SSL transport
+protocol: <asyncio.sslproto.SSLProtocol object at 0x7ff28419cdc0>
+transport: <_SelectorSocketTransport closing fd=7>
+Traceback (most recent call last):
+  File "/usr/lib/python3.10/asyncio/selector_events.py", line 924, in write
+    n = self._sock.send(data)
+OSError: [Errno 9] Bad file descriptor
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3.10/asyncio/sslproto.py", line 690, in _process_write_backlog
+    self._transport.write(chunk)
+  File "/usr/lib/python3.10/asyncio/selector_events.py", line 930, in write
+    self._fatal_error(exc, 'Fatal write error on socket transport')
+  File "/usr/lib/python3.10/asyncio/selector_events.py", line 725, in _fatal_error
+    self._force_close(exc)
+  File "/usr/lib/python3.10/asyncio/selector_events.py", line 737, in _force_close
+    self._loop.call_soon(self._call_connection_lost, exc)
+  File "/usr/lib/python3.10/asyncio/base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "/usr/lib/python3.10/asyncio/base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+2025-06-14 13:30:45,739 - root - INFO - Sistem logging berhasil diinisialisasi
+2025-06-14 13:30:45,739 - __main__ - INFO - 🚀 Memulai test hot reload system...
+2025-06-14 13:30:45,740 - core.config - INFO - Konfigurasi berhasil dimuat
+2025-06-14 13:30:45,740 - __main__ - INFO - 📁 Starting hot reload manager...
+2025-06-14 13:30:45,740 - core.hot_reload - INFO - Watching directory: /home/user/workspace/cogs
+2025-06-14 13:30:45,740 - core.hot_reload - INFO - Watching directory: /home/user/workspace/services
+2025-06-14 13:30:45,741 - core.hot_reload - INFO - Watching directory: /home/user/workspace/handlers
+2025-06-14 13:30:45,741 - core.hot_reload - INFO - Watching directory: /home/user/workspace/utils
+2025-06-14 13:30:45,741 - core.hot_reload - INFO - Watching directory: /home/user/workspace/ui
+2025-06-14 13:30:45,741 - core.hot_reload - INFO - Watching directory: /home/user/workspace/database
+2025-06-14 13:30:45,741 - core.hot_reload - INFO - Watching directory: /home/user/workspace/business
+2025-06-14 13:30:45,742 - core.hot_reload - INFO - Watching directory: /home/user/workspace/data
+2025-06-14 13:30:45,752 - core.hot_reload - INFO - Hot reload manager started
+2025-06-14 13:30:45,753 - __main__ - INFO - ✅ Hot reload manager berhasil distart!
+2025-06-14 13:30:45,753 - __main__ - INFO - 📊 Status: {'enabled': True, 'watching': 8, 'loaded_extensions': 3, 'config': {'enabled': True, 'watch_directories': ['cogs', 'services', 'handlers', 'utils', 'ui', 'database', 'business', 'data'], 'watch_extensions': ['.py'], 'ignore_patterns': ['__pycache__', '*.pyc', '*.log', '.git'], 'reload_delay': 1.0, 'auto_reload_cogs': True, 'log_reloads': True}}
+2025-06-14 13:30:45,753 - __main__ - INFO - 🔄 Testing reload all cogs...
+2025-06-14 13:30:45,753 - __main__ - INFO - Mock reloading extension: cogs.admin
+2025-06-14 13:30:45,854 - core.hot_reload - INFO - ✓ Reloaded: cogs.admin
+2025-06-14 13:30:45,854 - __main__ - INFO - Mock reloading extension: cogs.automod
+2025-06-14 13:30:45,955 - core.hot_reload - INFO - ✓ Reloaded: cogs.automod
+2025-06-14 13:30:45,955 - __main__ - INFO - Mock reloading extension: cogs.leveling
+2025-06-14 13:30:46,055 - core.hot_reload - INFO - ✓ Reloaded: cogs.leveling
+2025-06-14 13:30:46,056 - core.hot_reload - INFO - Reload complete: 3 success, 0 failed
+2025-06-14 13:30:46,056 - __main__ - INFO - 📈 Reload result: 3 success, 0 failed
+2025-06-14 13:30:46,056 - __main__ - INFO - 👀 Hot reload system aktif! Coba edit file di folder cogs/, services/, dll...
+2025-06-14 13:30:46,056 - __main__ - INFO - 💡 Untuk test: buat/edit file .py di folder yang di-watch
+2025-06-14 13:30:46,056 - __main__ - INFO - ⏰ Test akan berjalan selama 30 detik...
+2025-06-14 13:31:16,121 - core.hot_reload - INFO - Hot reload manager stopped
+2025-06-14 13:31:16,122 - __main__ - INFO - 🛑 Hot reload manager stopped
+2025-06-14 13:31:24,354 - root - INFO - Sistem logging berhasil diinisialisasi
+2025-06-14 13:31:24,355 - __main__ - INFO - 🚀 Memulai test hot reload system...
+2025-06-14 13:31:24,355 - core.config - INFO - Konfigurasi berhasil dimuat
+2025-06-14 13:31:24,355 - __main__ - INFO - 📁 Starting hot reload manager...
+2025-06-14 13:31:24,356 - core.hot_reload - INFO - Watching directory: /home/user/workspace/cogs
+2025-06-14 13:31:24,356 - core.hot_reload - INFO - Watching directory: /home/user/workspace/services
+2025-06-14 13:31:24,356 - core.hot_reload - INFO - Watching directory: /home/user/workspace/handlers
+2025-06-14 13:31:24,356 - core.hot_reload - INFO - Watching directory: /home/user/workspace/utils
+2025-06-14 13:31:24,356 - core.hot_reload - INFO - Watching directory: /home/user/workspace/ui
+2025-06-14 13:31:24,357 - core.hot_reload - INFO - Watching directory: /home/user/workspace/database
+2025-06-14 13:31:24,357 - core.hot_reload - INFO - Watching directory: /home/user/workspace/business
+2025-06-14 13:31:24,357 - core.hot_reload - INFO - Watching directory: /home/user/workspace/data
+2025-06-14 13:31:24,367 - core.hot_reload - INFO - Hot reload manager started
+2025-06-14 13:31:24,367 - __main__ - INFO - ✅ Hot reload manager berhasil distart!
+2025-06-14 13:31:24,367 - __main__ - INFO - 📊 Status: {'enabled': True, 'watching': 8, 'loaded_extensions': 3, 'config': {'enabled': True, 'watch_directories': ['cogs', 'services', 'handlers', 'utils', 'ui', 'database', 'business', 'data'], 'watch_extensions': ['.py'], 'ignore_patterns': ['__pycache__', '*.pyc', '*.log', '.git'], 'reload_delay': 1.0, 'auto_reload_cogs': True, 'log_reloads': True}}
+2025-06-14 13:31:24,367 - __main__ - INFO - 🔄 Testing reload all cogs...
+2025-06-14 13:31:24,367 - __main__ - INFO - Mock reloading extension: cogs.admin
+2025-06-14 13:31:24,468 - core.hot_reload - INFO - ✓ Reloaded: cogs.admin
+2025-06-14 13:31:24,468 - __main__ - INFO - Mock reloading extension: cogs.automod
+2025-06-14 13:31:24,568 - core.hot_reload - INFO - ✓ Reloaded: cogs.automod
+2025-06-14 13:31:24,569 - __main__ - INFO - Mock reloading extension: cogs.leveling
+2025-06-14 13:31:24,669 - core.hot_reload - INFO - ✓ Reloaded: cogs.leveling
+2025-06-14 13:31:24,669 - core.hot_reload - INFO - Reload complete: 3 success, 0 failed
+2025-06-14 13:31:24,669 - __main__ - INFO - 📈 Reload result: 3 success, 0 failed
+2025-06-14 13:31:24,670 - __main__ - INFO - 👀 Hot reload system aktif! Coba edit file di folder cogs/, services/, dll...
+2025-06-14 13:31:24,670 - __main__ - INFO - 💡 Untuk test: buat/edit file .py di folder yang di-watch
+2025-06-14 13:31:24,670 - __main__ - INFO - ⏰ Test akan berjalan selama 30 detik...
+2025-06-14 13:31:41,500 - core.hot_reload - INFO - File created: /home/user/workspace/cogs/test_cog.py
+2025-06-14 13:31:41,501 - core.hot_reload - ERROR - Error handling file change /home/user/workspace/cogs/test_cog.py: no running event loop
+2025-06-14 13:31:41,504 - core.hot_reload - INFO - File modified: /home/user/workspace/cogs/test_cog.py
+2025-06-14 13:31:41,504 - core.hot_reload - ERROR - Error handling file change /home/user/workspace/cogs/test_cog.py: no running event loop
+2025-06-14 13:31:41,504 - core.hot_reload - INFO - File created: /home/user/workspace/cogs/test_cog.py
+2025-06-14 13:31:41,504 - core.hot_reload - ERROR - Error handling file change /home/user/workspace/cogs/test_cog.py: no running event loop
+2025-06-14 13:31:41,505 - core.hot_reload - INFO - File created: /home/user/workspace/cogs/.backup.test_cog.py
+2025-06-14 13:31:41,505 - core.hot_reload - ERROR - Error handling file change /home/user/workspace/cogs/.backup.test_cog.py: no running event loop
+2025-06-14 13:31:41,505 - core.hot_reload - INFO - File modified: /home/user/workspace/cogs/.backup.test_cog.py
+2025-06-14 13:31:41,505 - core.hot_reload - ERROR - Error handling file change /home/user/workspace/cogs/.backup.test_cog.py: no running event loop
+2025-06-14 13:31:51,110 - core.hot_reload - INFO - File deleted: /home/user/workspace/cogs/.backup.test_cog.py
+2025-06-14 13:31:51,110 - core.hot_reload - ERROR - Error handling file change /home/user/workspace/cogs/.backup.test_cog.py: no running event loop
+2025-06-14 13:31:54,775 - core.hot_reload - INFO - Hot reload manager stopped
+2025-06-14 13:31:54,775 - __main__ - INFO - 🛑 Hot reload manager stopped
+2025-06-14 13:33:57,803 - root - INFO - Sistem logging berhasil diinisialisasi
+2025-06-14 13:33:57,803 - __main__ - INFO - 🚀 Memulai test hot reload system...
+2025-06-14 13:33:57,804 - core.config - INFO - Konfigurasi berhasil dimuat
+2025-06-14 13:33:57,804 - __main__ - INFO - 📁 Starting hot reload manager...
+2025-06-14 13:33:57,805 - core.hot_reload - INFO - Watching directory: /home/user/workspace/cogs
+2025-06-14 13:33:57,805 - core.hot_reload - INFO - Watching directory: /home/user/workspace/services
+2025-06-14 13:33:57,805 - core.hot_reload - INFO - Watching directory: /home/user/workspace/handlers
+2025-06-14 13:33:57,806 - core.hot_reload - INFO - Watching directory: /home/user/workspace/utils
+2025-06-14 13:33:57,806 - core.hot_reload - INFO - Watching directory: /home/user/workspace/ui
+2025-06-14 13:33:57,806 - core.hot_reload - INFO - Watching directory: /home/user/workspace/database
+2025-06-14 13:33:57,806 - core.hot_reload - INFO - Watching directory: /home/user/workspace/business
+2025-06-14 13:33:57,807 - core.hot_reload - INFO - Watching directory: /home/user/workspace/data
+2025-06-14 13:33:57,820 - core.hot_reload - INFO - Hot reload manager started
+2025-06-14 13:33:57,820 - __main__ - INFO - ✅ Hot reload manager berhasil distart!
+2025-06-14 13:33:57,820 - __main__ - INFO - 📊 Status: {'enabled': True, 'watching': 8, 'loaded_extensions': 3, 'config': {'enabled': True, 'watch_directories': ['cogs', 'services', 'handlers', 'utils', 'ui', 'database', 'business', 'data'], 'watch_extensions': ['.py'], 'ignore_patterns': ['__pycache__', '*.pyc', '*.log', '.git'], 'reload_delay': 1.0, 'auto_reload_cogs': True, 'log_reloads': True}}
+2025-06-14 13:33:57,820 - __main__ - INFO - 🔄 Testing reload all cogs...
+2025-06-14 13:33:57,821 - __main__ - INFO - Mock reloading extension: cogs.admin
+2025-06-14 13:33:57,921 - core.hot_reload - INFO - ✓ Reloaded: cogs.admin
+2025-06-14 13:33:57,922 - __main__ - INFO - Mock reloading extension: cogs.automod
+2025-06-14 13:33:58,022 - core.hot_reload - INFO - ✓ Reloaded: cogs.automod
+2025-06-14 13:33:58,023 - __main__ - INFO - Mock reloading extension: cogs.leveling
+2025-06-14 13:33:58,123 - core.hot_reload - INFO - ✓ Reloaded: cogs.leveling
+2025-06-14 13:33:58,124 - core.hot_reload - INFO - Reload complete: 3 success, 0 failed
+2025-06-14 13:33:58,124 - __main__ - INFO - 📈 Reload result: 3 success, 0 failed
+2025-06-14 13:33:58,124 - __main__ - INFO - 👀 Hot reload system aktif! Coba edit file di folder cogs/, services/, dll...
+2025-06-14 13:33:58,124 - __main__ - INFO - 💡 Untuk test: buat/edit file .py di folder yang di-watch
+2025-06-14 13:33:58,124 - __main__ - INFO - ⏰ Test akan berjalan selama 30 detik...
+2025-06-14 13:34:16,694 - core.hot_reload - INFO - File created: /home/user/workspace/cogs/test_cog.py
+2025-06-14 13:34:16,695 - core.hot_reload - INFO - File created: /home/user/workspace/cogs/.backup.test_cog.py
+2025-06-14 13:34:16,695 - core.hot_reload - INFO - File modified: /home/user/workspace/cogs/.backup.test_cog.py
+2025-06-14 13:34:17,697 - __main__ - INFO - Mock loading extension: cogs.test_cog
+2025-06-14 13:34:17,697 - __main__ - INFO - Mock loading extension: cogs..backup.test_cog
+2025-06-14 13:34:17,698 - __main__ - INFO - Mock reloading extension: cogs..backup.test_cog
+2025-06-14 13:34:17,798 - core.hot_reload - INFO - ✓ Loaded new cog: cogs.test_cog
+2025-06-14 13:34:17,798 - core.hot_reload - INFO - ✓ Loaded new cog: cogs..backup.test_cog
+2025-06-14 13:34:17,799 - core.hot_reload - INFO - ✓ Reloaded cog: cogs..backup.test_cog
+2025-06-14 13:34:27,068 - core.hot_reload - INFO - File deleted: /home/user/workspace/cogs/.backup.test_cog.py
+2025-06-14 13:34:28,070 - __main__ - INFO - Mock reloading extension: cogs..backup.test_cog
+2025-06-14 13:34:28,178 - core.hot_reload - INFO - Hot reload manager stopped
+2025-06-14 13:34:28,178 - __main__ - INFO - 🛑 Hot reload manager stopped

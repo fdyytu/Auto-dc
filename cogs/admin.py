@@ -147,6 +147,147 @@ class AdminCog(commands.Cog):
         except Exception as e:
             logger.error(f"Error manage balance: {e}")
             await ctx.send(embed=message_formatter.error_embed("Terjadi error"))
+    
+    @commands.group(name="reload", invoke_without_command=True)
+    async def reload_group(self, ctx):
+        """Group command untuk hot reload"""
+        embed = discord.Embed(
+            title="🔄 Hot Reload Commands",
+            description="Commands untuk mengelola hot reload system",
+            color=0x00ff00
+        )
+        embed.add_field(
+            name="Commands:",
+            value="""
+            `!reload status` - Cek status hot reload
+            `!reload toggle` - Toggle hot reload on/off
+            `!reload cog <nama>` - Reload cog tertentu
+            `!reload all` - Reload semua cogs
+            """,
+            inline=False
+        )
+        await ctx.send(embed=embed)
+    
+    @reload_group.command(name="status")
+    async def reload_status(self, ctx):
+        """Cek status hot reload"""
+        try:
+            status = self.bot.hot_reload_manager.get_status()
+            
+            embed = discord.Embed(
+                title="🔄 Hot Reload Status",
+                color=0x00ff00 if status["enabled"] else 0xff0000
+            )
+            
+            embed.add_field(
+                name="Status",
+                value="🟢 Aktif" if status["enabled"] else "🔴 Tidak Aktif",
+                inline=True
+            )
+            embed.add_field(
+                name="Watching Directories",
+                value=str(status["watching"]),
+                inline=True
+            )
+            embed.add_field(
+                name="Loaded Extensions",
+                value=str(status["loaded_extensions"]),
+                inline=True
+            )
+            
+            config_info = status["config"]
+            embed.add_field(
+                name="Configuration",
+                value=f"""
+                Auto Reload Cogs: {'✅' if config_info.get('auto_reload_cogs') else '❌'}
+                Log Reloads: {'✅' if config_info.get('log_reloads') else '❌'}
+                Reload Delay: {config_info.get('reload_delay', 1.0)}s
+                """,
+                inline=False
+            )
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error getting reload status: {e}")
+            await ctx.send(embed=message_formatter.error_embed("Gagal mendapatkan status"))
+    
+    @reload_group.command(name="toggle")
+    async def reload_toggle(self, ctx):
+        """Toggle hot reload on/off"""
+        try:
+            if self.bot.hot_reload_manager.is_enabled():
+                await self.bot.hot_reload_manager.stop()
+                embed = message_formatter.success_embed(
+                    "Hot Reload Dimatikan",
+                    "Auto reload telah dinonaktifkan"
+                )
+            else:
+                success = await self.bot.hot_reload_manager.start()
+                if success:
+                    embed = message_formatter.success_embed(
+                        "Hot Reload Diaktifkan",
+                        "Auto reload telah diaktifkan"
+                    )
+                else:
+                    embed = message_formatter.error_embed("Gagal mengaktifkan hot reload")
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error toggling reload: {e}")
+            await ctx.send(embed=message_formatter.error_embed("Gagal toggle hot reload"))
+    
+    @reload_group.command(name="cog")
+    async def reload_cog(self, ctx, cog_name: str):
+        """Reload cog tertentu"""
+        try:
+            # Pastikan nama cog dalam format yang benar
+            if not cog_name.startswith("cogs."):
+                cog_name = f"cogs.{cog_name}"
+            
+            # Cek apakah cog ada
+            if cog_name not in self.bot.extensions:
+                await ctx.send(embed=message_formatter.error_embed(f"Cog {cog_name} tidak ditemukan"))
+                return
+            
+            # Reload cog
+            await self.bot.reload_extension(cog_name)
+            
+            embed = message_formatter.success_embed(
+                "Cog Direload",
+                f"✅ {cog_name} berhasil direload"
+            )
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error reloading cog {cog_name}: {e}")
+            await ctx.send(embed=message_formatter.error_embed(f"Gagal reload {cog_name}: {str(e)}"))
+    
+    @reload_group.command(name="all")
+    async def reload_all(self, ctx):
+        """Reload semua cogs"""
+        try:
+            # Kirim pesan loading
+            loading_msg = await ctx.send("🔄 Reloading semua cogs...")
+            
+            # Reload semua cogs
+            reloaded, failed = await self.bot.hot_reload_manager.reload_all_cogs()
+            
+            # Update pesan dengan hasil
+            embed = discord.Embed(
+                title="🔄 Reload All Cogs Complete",
+                color=0x00ff00 if failed == 0 else 0xffaa00
+            )
+            embed.add_field(name="✅ Berhasil", value=str(reloaded), inline=True)
+            embed.add_field(name="❌ Gagal", value=str(failed), inline=True)
+            embed.add_field(name="📊 Total", value=str(reloaded + failed), inline=True)
+            
+            await loading_msg.edit(content="", embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error reloading all cogs: {e}")
+            await ctx.send(embed=message_formatter.error_embed("Gagal reload semua cogs"))
 
 async def setup(bot):
     """Setup admin cog"""

@@ -67,5 +67,24 @@
             "1318806349118963729"
         ],
         "log_channel": "1346119002862391326"
+    },
+
+    "hot_reload": {
+        "enabled": true,
+        "watch_directories": [
+            "cogs",
+            "services", 
+            "handlers",
+            "utils",
+            "ui",
+            "database",
+            "business",
+            "data"
+        ],
+        "watch_extensions": [".py"],
+        "ignore_patterns": ["__pycache__", "*.pyc", "*.log", ".git"],
+        "reload_delay": 1.0,
+        "auto_reload_cogs": true,
+        "log_reloads": true
     }
 }
