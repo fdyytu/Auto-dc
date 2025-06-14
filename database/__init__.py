@@ -1,20 +1,20 @@
 """
-Database package
-Provides backward compatibility for existing ext modules
+Database Package
+Export semua komponen database untuk kemudahan import
 """
 
-from .connection import DatabaseManager
-from .migrations import setup_database
+from .manager import DatabaseManager, db_manager, get_connection, setup_database, verify_database
+from .connection import DatabaseManager as ConnectionManager
+from . import models
+from . import repositories
 
-# Backward compatibility untuk ext modules
-_db_manager = None
-
-def get_connection():
-    """Backward compatibility function"""
-    global _db_manager
-    if _db_manager is None:
-        _db_manager = DatabaseManager()
-    return _db_manager
-
-# Export untuk compatibility
-__all__ = ['DatabaseManager', 'setup_database', 'get_connection']
+__all__ = [
+    'DatabaseManager',
+    'db_manager',
+    'get_connection',
+    'setup_database', 
+    'verify_database',
+    'ConnectionManager',
+    'models',
+    'repositories'
+]
