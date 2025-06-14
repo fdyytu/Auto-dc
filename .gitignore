@@ -24,3 +24,5 @@ test_*.py
 Thumbs.db
 
 .env
+*.log
+logs/*.log
