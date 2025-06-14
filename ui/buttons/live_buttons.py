@@ -37,8 +37,8 @@ from config.constants.bot_constants import (
 from utils.base_handler import BaseLockHandler
 from services.cache_service import CacheManager
 from services.product_service import ProductService
-from services.balance_service import BalanceService
-from services.transaction_service import TransactionService
+from services.balance_service import BalanceManagerService as BalanceService
+from services.transaction_service import TransactionManager as TransactionService
 from services.admin_service import AdminService
 
 class QuantityModal(Modal):
