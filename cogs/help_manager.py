@@ -9,8 +9,9 @@ from discord.ext import commands
 from typing import Dict, List
 from datetime import datetime
 
-from ext.constants import COLORS, Permissions
-from ext.admin_service import AdminService
+from config.constants.bot_constants import COLORS
+from services.admin_service import AdminService
+from cogs.utils import Permissions
 
 class HelpManager(commands.Cog):
     def __init__(self, bot):

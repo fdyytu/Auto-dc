@@ -14,8 +14,8 @@ from discord import ui
 from typing import Dict, Optional
 from datetime import datetime
 
-from .base_handler import BaseLockHandler
-from .cache_manager import CacheManager
+from utils.base_handler import BaseLockHandler
+from services.cache_service import CacheManager
 
 class AdminService(BaseLockHandler):
     _instance = None
@@ -68,6 +68,21 @@ class AdminService(BaseLockHandler):
             return True
         except Exception as e:
             self.logger.error(f"Error setting maintenance mode: {e}")
+            return False
+
+    async def check_permission(self, user_id: int, permission: str) -> bool:
+        """Check if user has specific permission"""
+        try:
+            # For now, implement basic admin check
+            # You can extend this to check roles, database, etc.
+            if permission == "admin":
+                # Check if user has admin role or is in admin list
+                # This is a basic implementation - customize as needed
+                admin_users = self.bot.config.get('admin_users', [])
+                return user_id in admin_users
+            return False
+        except Exception as e:
+            self.logger.error(f"Error checking permission: {e}")
             return False
 
     async def cleanup(self):

@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Optional, Union, Dict, Any, Callable, List
 import logging
 import sys
+import asyncio
 from pathlib import Path
 
 # Add parent directory to path to import database
@@ -48,6 +49,11 @@ class EventDispatcher:
 
 class Permissions:
     """Permission management utility"""
+    
+    # Permission constants
+    ADMIN = "admin"
+    MODERATOR = "moderator"
+    HELPER = "helper"
     
     def __init__(self):
         self.permissions = {
