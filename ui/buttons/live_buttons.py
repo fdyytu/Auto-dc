@@ -56,10 +56,17 @@ class QuantityModal(Modal):
         self.add_item(self.quantity)
 
     async def on_submit(self, interaction: discord.Interaction):
+        # Log detail interaksi quantity modal
+        logger = logging.getLogger("QuantityModal")
+        logger.info(f"[QUANTITY_MODAL] User {interaction.user.id} ({interaction.user.name}) submitted quantity: {self.quantity.value} for product: {self.product_code}")
+        logger.debug(f"[QUANTITY_MODAL] Interaction ID: {interaction.id}, Guild: {interaction.guild_id}, Channel: {interaction.channel_id}")
+        
         await interaction.response.defer(ephemeral=True)
         try:
             quantity = int(self.quantity.value)
+            logger.info(f"[QUANTITY_MODAL] Processing purchase: {quantity}x {self.product_code} for user {interaction.user.id}")
             if quantity <= 0:
+                logger.warning(f"[QUANTITY_MODAL] Invalid quantity {quantity} from user {interaction.user.id}")
                 raise ValueError(MESSAGES.ERROR['INVALID_AMOUNT'])
 
             product_service = ProductService(interaction.client.db_manager)
@@ -170,11 +177,18 @@ class ProductSelect(Select):
         )
 
     async def callback(self, interaction: discord.Interaction):
+        # Log detail interaksi product select
+        logger = logging.getLogger("ProductSelect")
+        logger.info(f"[PRODUCT_SELECT] User {interaction.user.id} ({interaction.user.name}) selected product: {self.values[0] if self.values else 'None'}")
+        logger.debug(f"[PRODUCT_SELECT] Interaction ID: {interaction.id}, Guild: {interaction.guild_id}, Channel: {interaction.channel_id}")
+        
         await interaction.response.defer(ephemeral=True)
         try:
             selected_code = self.values[0]
+            logger.info(f"[PRODUCT_SELECT] Processing product selection: {selected_code} for user {interaction.user.id}")
             product_response = await self.product_service.get_product(selected_code)
             if not product_response.success:
+                logger.error(f"[PRODUCT_SELECT] Failed to get product {selected_code}: {product_response.error}")
                 raise ValueError(product_response.error)
 
             selected_product = product_response.data
@@ -226,12 +240,19 @@ class RegisterModal(Modal):
         self.add_item(self.growid)
 
     async def on_submit(self, interaction: discord.Interaction):
+        # Log detail interaksi register modal
+        logger = logging.getLogger("RegisterModal")
+        logger.info(f"[REGISTER_MODAL] User {interaction.user.id} ({interaction.user.name}) submitted registration with GrowID: {self.growid.value}")
+        logger.debug(f"[REGISTER_MODAL] Interaction ID: {interaction.id}, Guild: {interaction.guild_id}, Channel: {interaction.channel_id}")
+        
         await interaction.response.defer(ephemeral=True)
         try:
             balance_service = BalanceService(interaction.client.db_manager)
 
             growid = str(self.growid.value).strip().upper()
+            logger.info(f"[REGISTER_MODAL] Processing registration for user {interaction.user.id} with GrowID: {growid}")
             if not growid or len(growid) < 3:
+                logger.warning(f"[REGISTER_MODAL] Invalid GrowID format from user {interaction.user.id}: {growid}")
                 raise ValueError(MESSAGES.ERROR['INVALID_GROWID'])
 
             register_response = await balance_service.register_user(
@@ -276,6 +297,14 @@ class ShopView(View):
         self.logger = logging.getLogger("ShopView")
         self._interaction_locks = {}
         self._last_cleanup = datetime.utcnow()
+        self._button_stats = {
+            'register': {'clicks': 0, 'errors': 0, 'last_used': None},
+            'balance': {'clicks': 0, 'errors': 0, 'last_used': None},
+            'world_info': {'clicks': 0, 'errors': 0, 'last_used': None},
+            'buy': {'clicks': 0, 'errors': 0, 'last_used': None},
+            'history': {'clicks': 0, 'errors': 0, 'last_used': None}
+        }
+        self.logger.info("[SHOP_VIEW] ShopView initialized with button statistics tracking")
 
     async def _cleanup_locks(self):
         """Cleanup old locks periodically"""
@@ -307,13 +336,46 @@ class ShopView(View):
             except:
                 pass
 
+    def _update_button_stats(self, button_name: str, success: bool = True):
+        """Update button statistics"""
+        if button_name in self._button_stats:
+            self._button_stats[button_name]['clicks'] += 1
+            self._button_stats[button_name]['last_used'] = datetime.utcnow()
+            if not success:
+                self._button_stats[button_name]['errors'] += 1
+            
+            # Log statistics every 10 clicks
+            stats = self._button_stats[button_name]
+            if stats['clicks'] % 10 == 0:
+                error_rate = (stats['errors'] / stats['clicks']) * 100 if stats['clicks'] > 0 else 0
+                self.logger.info(f"[BUTTON_STATS] {button_name.upper()}: {stats['clicks']} clicks, {stats['errors']} errors ({error_rate:.1f}% error rate)")
+
+    def get_button_health_report(self) -> str:
+        """Generate button health report"""
+        report = []
+        for button_name, stats in self._button_stats.items():
+            if stats['clicks'] > 0:
+                error_rate = (stats['errors'] / stats['clicks']) * 100
+                last_used = stats['last_used'].strftime('%H:%M:%S') if stats['last_used'] else 'Never'
+                status = "🔴 CRITICAL" if error_rate > 50 else "🟡 WARNING" if error_rate > 20 else "🟢 HEALTHY"
+                report.append(f"{button_name}: {status} ({stats['clicks']} clicks, {error_rate:.1f}% errors, last: {last_used})")
+        return "\n".join(report) if report else "No button activity recorded"
+
     @discord.ui.button(
         style=discord.ButtonStyle.primary,
         label="📝 Daftar",
         custom_id=BUTTON_IDS.REGISTER
     )
     async def register_callback(self, interaction: discord.Interaction, button: Button):
+        # Log detail interaksi tombol
+        self.logger.info(f"[BUTTON_REGISTER] User {interaction.user.id} ({interaction.user.name}) clicked register button")
+        self.logger.debug(f"[BUTTON_REGISTER] Interaction ID: {interaction.id}, Guild: {interaction.guild_id}, Channel: {interaction.channel_id}")
+        
+        # Update button statistics
+        self._update_button_stats('register')
+        
         if not await self._acquire_interaction_lock(str(interaction.id)):
+            self.logger.warning(f"[BUTTON_REGISTER] Failed to acquire lock for user {interaction.user.id}")
             await interaction.response.send_message(
                 embed=discord.Embed(
                     title="⏳ Mohon Tunggu",
@@ -325,8 +387,10 @@ class ShopView(View):
             return
 
         try:
+            self.logger.info(f"[BUTTON_REGISTER] Processing registration for user {interaction.user.id}")
             # Check maintenance mode
             if await self.admin_service.is_maintenance_mode():
+                self.logger.warning(f"[BUTTON_REGISTER] Maintenance mode active, blocking user {interaction.user.id}")
                 raise ValueError(MESSAGES.INFO['MAINTENANCE'])
 
             growid_response = await self.balance_service.get_growid(str(interaction.user.id))
@@ -345,6 +409,8 @@ class ShopView(View):
             await interaction.response.send_modal(modal)
 
         except ValueError as e:
+            self._update_button_stats('register', success=False)
+            self.logger.warning(f"[BUTTON_REGISTER] ValueError for user {interaction.user.id}: {str(e)}")
             if not interaction.response.is_done():
                 await interaction.response.send_message(
                     embed=discord.Embed(
@@ -355,7 +421,8 @@ class ShopView(View):
                     ephemeral=True
                 )
         except Exception as e:
-            self.logger.error(f"Error in register callback: {e}")
+            self._update_button_stats('register', success=False)
+            self.logger.error(f"[BUTTON_REGISTER] Unexpected error for user {interaction.user.id}: {e}", exc_info=True)
             if not interaction.response.is_done():
                 await interaction.response.send_message(
                     embed=discord.Embed(
@@ -366,6 +433,7 @@ class ShopView(View):
                     ephemeral=True
                 )
         finally:
+            self.logger.debug(f"[BUTTON_REGISTER] Releasing interaction lock for user {interaction.user.id}")
             self._release_interaction_lock(str(interaction.id))
 
     @discord.ui.button(
@@ -374,7 +442,15 @@ class ShopView(View):
         custom_id=BUTTON_IDS.BALANCE
     )
     async def balance_callback(self, interaction: discord.Interaction, button: Button):
+        # Log detail interaksi tombol
+        self.logger.info(f"[BUTTON_BALANCE] User {interaction.user.id} ({interaction.user.name}) clicked balance button")
+        self.logger.debug(f"[BUTTON_BALANCE] Interaction ID: {interaction.id}, Guild: {interaction.guild_id}, Channel: {interaction.channel_id}")
+        
+        # Update button statistics
+        self._update_button_stats('balance')
+        
         if not await self._acquire_interaction_lock(str(interaction.id)):
+            self.logger.warning(f"[BUTTON_BALANCE] Failed to acquire lock for user {interaction.user.id}")
             await interaction.response.send_message(
                 embed=discord.Embed(
                     title="⏳ Mohon Tunggu",
@@ -386,10 +462,12 @@ class ShopView(View):
             return
 
         try:
+            self.logger.info(f"[BUTTON_BALANCE] Processing balance request for user {interaction.user.id}")
             await interaction.response.defer(ephemeral=True)
 
             # Check maintenance mode
             if await self.admin_service.is_maintenance_mode():
+                self.logger.warning(f"[BUTTON_BALANCE] Maintenance mode active, blocking user {interaction.user.id}")
                 raise ValueError(MESSAGES.INFO['MAINTENANCE'])
 
             growid_response = await self.balance_service.get_growid(str(interaction.user.id))
@@ -449,6 +527,8 @@ class ShopView(View):
             await interaction.followup.send(embed=embed, ephemeral=True)
 
         except ValueError as e:
+            self._update_button_stats('balance', success=False)
+            self.logger.warning(f"[BUTTON_BALANCE] ValueError for user {interaction.user.id}: {str(e)}")
             error_embed = discord.Embed(
                 title="❌ Error",
                 description=str(e),
@@ -456,7 +536,8 @@ class ShopView(View):
             )
             await interaction.followup.send(embed=error_embed, ephemeral=True)
         except Exception as e:
-            self.logger.error(f"Error in balance callback: {e}")
+            self._update_button_stats('balance', success=False)
+            self.logger.error(f"[BUTTON_BALANCE] Unexpected error for user {interaction.user.id}: {e}", exc_info=True)
             error_embed = discord.Embed(
                 title="❌ Error",
                 description=MESSAGES.ERROR['BALANCE_FAILED'],
@@ -464,6 +545,7 @@ class ShopView(View):
             )
             await interaction.followup.send(embed=error_embed, ephemeral=True)
         finally:
+            self.logger.debug(f"[BUTTON_BALANCE] Releasing interaction lock for user {interaction.user.id}")
             self._release_interaction_lock(str(interaction.id))
 
     def _format_currency(self, amount: int) -> str:
@@ -483,7 +565,15 @@ class ShopView(View):
         custom_id=BUTTON_IDS.WORLD_INFO
     )
     async def world_info_callback(self, interaction: discord.Interaction, button: Button):
+        # Log detail interaksi tombol
+        self.logger.info(f"[BUTTON_WORLD_INFO] User {interaction.user.id} ({interaction.user.name}) clicked world info button")
+        self.logger.debug(f"[BUTTON_WORLD_INFO] Interaction ID: {interaction.id}, Guild: {interaction.guild_id}, Channel: {interaction.channel_id}")
+        
+        # Update button statistics
+        self._update_button_stats('world_info')
+        
         if not await self._acquire_interaction_lock(str(interaction.id)):
+            self.logger.warning(f"[BUTTON_WORLD_INFO] Failed to acquire lock for user {interaction.user.id}")
             await interaction.response.send_message(
                 embed=discord.Embed(
                     title="⏳ Mohon Tunggu",
@@ -495,14 +585,16 @@ class ShopView(View):
             return
     
         try:
+            self.logger.info(f"[BUTTON_WORLD_INFO] Processing world info request for user {interaction.user.id}")
             await interaction.response.defer(ephemeral=True)
             
             # Check maintenance mode
             if await self.admin_service.is_maintenance_mode():
+                self.logger.warning(f"[BUTTON_WORLD_INFO] Maintenance mode active, blocking user {interaction.user.id}")
                 raise ValueError(MESSAGES.INFO['MAINTENANCE'])
                 
-            # Gunakan ProductManager untuk get world info
-            world_response = await self.product_manager.get_world_info()
+            # Gunakan ProductService untuk get world info (FIXED BUG)
+            world_response = await self.product_service.get_world_info()
             if not world_response.success:
                 raise ValueError(world_response.error or MESSAGES.ERROR['WORLD_INFO_FAILED'])
                 
@@ -552,6 +644,8 @@ class ShopView(View):
             await interaction.followup.send(embed=embed, ephemeral=True)
     
         except ValueError as e:
+            self._update_button_stats('world_info', success=False)
+            self.logger.warning(f"[BUTTON_WORLD_INFO] ValueError for user {interaction.user.id}: {str(e)}")
             await interaction.followup.send(
                 embed=discord.Embed(
                     title="❌ Error",
@@ -561,7 +655,8 @@ class ShopView(View):
                 ephemeral=True
             )
         except Exception as e:
-            self.logger.error(f"Error in world info callback: {e}")
+            self._update_button_stats('world_info', success=False)
+            self.logger.error(f"[BUTTON_WORLD_INFO] Unexpected error for user {interaction.user.id}: {e}", exc_info=True)
             await interaction.followup.send(
                 embed=discord.Embed(
                     title="❌ Error",
@@ -571,6 +666,7 @@ class ShopView(View):
                 ephemeral=True
             )
         finally:
+            self.logger.debug(f"[BUTTON_WORLD_INFO] Releasing interaction lock for user {interaction.user.id}")
             self._release_interaction_lock(str(interaction.id))
 
     @discord.ui.button(
@@ -579,7 +675,15 @@ class ShopView(View):
         custom_id=BUTTON_IDS.BUY
     )
     async def buy_callback(self, interaction: discord.Interaction, button: Button):
+        # Log detail interaksi tombol
+        self.logger.info(f"[BUTTON_BUY] User {interaction.user.id} ({interaction.user.name}) clicked buy button")
+        self.logger.debug(f"[BUTTON_BUY] Interaction ID: {interaction.id}, Guild: {interaction.guild_id}, Channel: {interaction.channel_id}")
+        
+        # Update button statistics
+        self._update_button_stats('buy')
+        
         if not await self._acquire_interaction_lock(str(interaction.id)):
+            self.logger.warning(f"[BUTTON_BUY] Failed to acquire lock for user {interaction.user.id}")
             await interaction.response.send_message(
                 embed=discord.Embed(
                     title="⏳ Mohon Tunggu",
@@ -591,10 +695,12 @@ class ShopView(View):
             return
 
         try:
+            self.logger.info(f"[BUTTON_BUY] Processing buy request for user {interaction.user.id}")
             await interaction.response.defer(ephemeral=True)
 
             # Check maintenance mode
             if await self.admin_service.is_maintenance_mode():
+                self.logger.warning(f"[BUTTON_BUY] Maintenance mode active, blocking user {interaction.user.id}")
                 raise ValueError(MESSAGES.INFO['MAINTENANCE'])
 
             growid_response = await self.balance_service.get_growid(str(interaction.user.id))
@@ -659,6 +765,8 @@ class ShopView(View):
             await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
         except ValueError as e:
+            self._update_button_stats('buy', success=False)
+            self.logger.warning(f"[BUTTON_BUY] ValueError for user {interaction.user.id}: {str(e)}")
             error_embed = discord.Embed(
                 title="❌ Error",
                 description=str(e),
@@ -666,7 +774,8 @@ class ShopView(View):
             )
             await interaction.followup.send(embed=error_embed, ephemeral=True)
         except Exception as e:
-            self.logger.error(f"Error in buy callback: {e}")
+            self._update_button_stats('buy', success=False)
+            self.logger.error(f"[BUTTON_BUY] Unexpected error for user {interaction.user.id}: {e}", exc_info=True)
             error_embed = discord.Embed(
                 title="❌ Error",
                 description=MESSAGES.ERROR['TRANSACTION_FAILED'],
@@ -674,6 +783,7 @@ class ShopView(View):
             )
             await interaction.followup.send(embed=error_embed, ephemeral=True)
         finally:
+            self.logger.debug(f"[BUTTON_BUY] Releasing interaction lock for user {interaction.user.id}")
             self._release_interaction_lock(str(interaction.id))
 
     @discord.ui.button(
@@ -682,7 +792,15 @@ class ShopView(View):
         custom_id=BUTTON_IDS.HISTORY
     )
     async def history_callback(self, interaction: discord.Interaction, button: Button):
+        # Log detail interaksi tombol
+        self.logger.info(f"[BUTTON_HISTORY] User {interaction.user.id} ({interaction.user.name}) clicked history button")
+        self.logger.debug(f"[BUTTON_HISTORY] Interaction ID: {interaction.id}, Guild: {interaction.guild_id}, Channel: {interaction.channel_id}")
+        
+        # Update button statistics
+        self._update_button_stats('history')
+        
         if not await self._acquire_interaction_lock(str(interaction.id)):
+            self.logger.warning(f"[BUTTON_HISTORY] Failed to acquire lock for user {interaction.user.id}")
             await interaction.response.send_message(
                 embed=discord.Embed(
                     title="⏳ Mohon Tunggu",
@@ -694,10 +812,12 @@ class ShopView(View):
             return
 
         try:
+            self.logger.info(f"[BUTTON_HISTORY] Processing history request for user {interaction.user.id}")
             await interaction.response.defer(ephemeral=True)
 
             # Check maintenance mode
             if await self.admin_service.is_maintenance_mode():
+                self.logger.warning(f"[BUTTON_HISTORY] Maintenance mode active, blocking user {interaction.user.id}")
                 raise ValueError(MESSAGES.INFO['MAINTENANCE'])
 
             growid_response = await self.balance_service.get_growid(str(interaction.user.id))
@@ -765,6 +885,8 @@ class ShopView(View):
             await interaction.followup.send(embed=embed, ephemeral=True)
 
         except ValueError as e:
+            self._update_button_stats('history', success=False)
+            self.logger.warning(f"[BUTTON_HISTORY] ValueError for user {interaction.user.id}: {str(e)}")
             error_embed = discord.Embed(
                 title="❌ Error",
                 description=str(e),
@@ -772,7 +894,8 @@ class ShopView(View):
             )
             await interaction.followup.send(embed=error_embed, ephemeral=True)
         except Exception as e:
-            self.logger.error(f"Error in history callback: {e}")
+            self._update_button_stats('history', success=False)
+            self.logger.error(f"[BUTTON_HISTORY] Unexpected error for user {interaction.user.id}: {e}", exc_info=True)
             error_embed = discord.Embed(
                 title="❌ Error",
                 description=MESSAGES.ERROR['TRANSACTION_FAILED'],
@@ -780,6 +903,7 @@ class ShopView(View):
             )
             await interaction.followup.send(embed=error_embed, ephemeral=True)
         finally:
+            self.logger.debug(f"[BUTTON_HISTORY] Releasing interaction lock for user {interaction.user.id}")
             self._release_interaction_lock(str(interaction.id))
 
 class LiveButtonManager(BaseLockHandler):
@@ -799,7 +923,20 @@ class LiveButtonManager(BaseLockHandler):
 
     def create_view(self):
         """Create shop view with buttons"""
-        return ShopView(self.bot)
+        self.logger.info("[VIEW_CREATION] Creating new ShopView with buttons")
+        view = ShopView(self.bot)
+        self.logger.debug(f"[VIEW_CREATION] ShopView created with {len(view.children)} buttons")
+        return view
+
+    def get_button_health_report(self):
+        """Get button health report from current view"""
+        try:
+            # Create a temporary view to access button statistics
+            temp_view = ShopView(self.bot)
+            return temp_view.get_button_health_report()
+        except Exception as e:
+            self.logger.error(f"Error getting button health report: {e}")
+            return "Unable to generate button health report"
 
     async def set_stock_manager(self, stock_manager):
         """Set stock manager untuk integrasi"""
@@ -810,10 +947,11 @@ class LiveButtonManager(BaseLockHandler):
 
     async def get_or_create_message(self) -> Optional[discord.Message]:
         """Create or get existing message with both stock display and buttons"""
+        self.logger.info("[MESSAGE_MANAGEMENT] Getting or creating live stock message")
         try:
             channel = self.bot.get_channel(self.stock_channel_id)
             if not channel:
-                self.logger.error(f"Channel stock dengan ID {self.stock_channel_id} tidak ditemukan")
+                self.logger.error(f"[MESSAGE_MANAGEMENT] Channel stock dengan ID {self.stock_channel_id} tidak ditemukan")
                 return None
 
             # First check if stock manager has a valid message
@@ -864,17 +1002,21 @@ class LiveButtonManager(BaseLockHandler):
     # Di LiveButtonManager, perbaiki method force_update
     async def force_update(self) -> bool:
         """Force update stock display and buttons"""
+        self.logger.info("[FORCE_UPDATE] Starting force update of live stock display")
         try:
             if not self.current_message:
+                self.logger.debug("[FORCE_UPDATE] No current message, creating new one")
                 self.current_message = await self.get_or_create_message()
 
             if not self.current_message:
+                self.logger.error("[FORCE_UPDATE] Failed to get or create message")
                 return False
 
             # Check maintenance mode 
             try:
                 is_maintenance = await self.admin_service.is_maintenance_mode()
                 if is_maintenance:
+                    self.logger.info("[FORCE_UPDATE] Maintenance mode active, showing maintenance message")
                     embed = discord.Embed(
                         title="🔧 Maintenance Mode",
                         description=MESSAGES.INFO['MAINTENANCE'],
@@ -883,18 +1025,23 @@ class LiveButtonManager(BaseLockHandler):
                     await self.current_message.edit(embed=embed, view=None)
                     return True
             except Exception as e:
-                self.logger.error(f"Error checking maintenance mode: {e}")
+                self.logger.error(f"[FORCE_UPDATE] Error checking maintenance mode: {e}")
                 return False
 
             if self.stock_manager:
+                self.logger.debug("[FORCE_UPDATE] Updating stock display via stock manager")
                 await self.stock_manager.update_stock_display()
 
+            self.logger.debug("[FORCE_UPDATE] Creating new view with buttons")
             view = self.create_view()
+            
+            self.logger.debug("[FORCE_UPDATE] Editing message with new view")
             await self.current_message.edit(view=view)
+            self.logger.info("[FORCE_UPDATE] Force update completed successfully")
             return True
 
         except Exception as e:
-            self.logger.error(f"Error in force update: {e}")
+            self.logger.error(f"[FORCE_UPDATE] Error in force update: {e}")
             return False
 
     async def cleanup(self):
