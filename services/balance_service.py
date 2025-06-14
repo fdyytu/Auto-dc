@@ -19,20 +19,17 @@ from datetime import datetime
 import discord
 from discord.ext import commands
 
-from .constants import (
+from config.constants.bot_constants import (
     Balance,
     TransactionType,
-    TransactionError,
     CURRENCY_RATES,
     MESSAGES,
     CACHE_TIMEOUT,
-    COLORS,
-    NOTIFICATION_CHANNELS,
-    EVENTS
+    COLORS
 )
 from database import get_connection
-from .base_handler import BaseLockHandler
-from .cache_manager import CacheManager
+from utils.base_handler import BaseLockHandler
+from services.cache_service import CacheManager
 
 class BalanceCallbackManager:
     """Manager untuk mengelola callbacks balance service"""
@@ -110,28 +107,11 @@ class BalanceManagerService(BaseLockHandler):
         
         async def notify_balance_updated(growid: str, old_balance: Balance, new_balance: Balance):
             """Callback untuk notifikasi update balance"""
-            channel_id = NOTIFICATION_CHANNELS.get('transactions')
-            if channel := self.bot.get_channel(channel_id):
-                embed = discord.Embed(
-                    title="Balance Updated",
-                    color=COLORS.SUCCESS
-                )
-                embed.add_field(name="GrowID", value=growid)
-                embed.add_field(name="Old Balance", value=str(old_balance))
-                embed.add_field(name="New Balance", value=str(new_balance))
-                await channel.send(embed=embed)
+            self.logger.info(f"Balance updated for {growid}: {old_balance} -> {new_balance}")
         
         async def notify_user_registered(discord_id: str, growid: str):
             """Callback untuk notifikasi user registration"""
-            channel_id = NOTIFICATION_CHANNELS.get('admin_logs')
-            if channel := self.bot.get_channel(channel_id):
-                embed = discord.Embed(
-                    title="New User Registered",
-                    color=COLORS.INFO
-                )
-                embed.add_field(name="Discord ID", value=discord_id)
-                embed.add_field(name="GrowID", value=growid)
-                await channel.send(embed=embed)
+            self.logger.info(f"New user registered: {discord_id} -> {growid}")
         
         # Register default callbacks
         self.callback_manager.register('balance_updated', notify_balance_updated)
@@ -170,20 +150,7 @@ class BalanceManagerService(BaseLockHandler):
         except Exception as e:
             self.logger.error(f"Error during cleanup: {e}")
 
-    async def cleanup(self):
-        """Cleanup resources before unloading"""
-        try:
-            patterns = [
-                "growid_*",
-                "discord_id_*", 
-                "balance_*",
-                "trx_history_*"
-            ]
-            for pattern in patterns:
-                await self.cache_manager.delete_pattern(pattern)
-            self.logger.info("BalanceManagerService cleanup completed")
-        except Exception as e:
-            self.logger.error(f"Error during cleanup: {e}")
+
 
     async def get_growid(self, discord_id: str) -> BalanceResponse:
         """Get GrowID for Discord user with proper locking and caching"""
@@ -461,10 +428,8 @@ class BalanceManagerService(BaseLockHandler):
 
             except Exception as e:
                 conn.rollback()
-                raise TransactionError(str(e))
-
-        except TransactionError as e:
-            return BalanceResponse.error(str(e))
+                raise Exception(str(e))
+        
         except Exception as e:
             self.logger.error(f"Error updating balance: {e}")
             await self.callback_manager.trigger('error', 'update_balance', str(e))
@@ -531,31 +496,13 @@ class BalanceManagerCog(commands.Cog):
         async def notify_low_balance(growid: str, balance: Balance):
             """Notify when balance is low"""
             if balance.total_wl() < 1000:  # Example threshold
-                channel_id = NOTIFICATION_CHANNELS.get('admin_logs')
-                if channel := self.bot.get_channel(channel_id):
-                    embed = discord.Embed(
-                        title="Low Balance Alert",
-                        description=f"User {growid} has low balance!",
-                        color=COLORS.WARNING
-                    )
-                    embed.add_field(name="Current Balance", value=str(balance))
-                    await channel.send(embed=embed)
+                self.logger.warning(f"Low balance alert for {growid}: {balance}")
         
         async def notify_large_transaction(growid: str, old_balance: Balance, new_balance: Balance):
             """Notify for large transactions"""
             diff = abs(new_balance.total_wl() - old_balance.total_wl())
             if diff > 100000:  # Example threshold: 100K WLS
-                channel_id = NOTIFICATION_CHANNELS.get('admin_logs')
-                if channel := self.bot.get_channel(channel_id):
-                    embed = discord.Embed(
-                        title="Large Transaction Alert",
-                        description=f"Large balance change detected for {growid}",
-                        color=COLORS.WARNING
-                    )
-                    embed.add_field(name="Old Balance", value=str(old_balance))
-                    embed.add_field(name="New Balance", value=str(new_balance))
-                    embed.add_field(name="Difference", value=f"{diff:,} WLS")
-                    await channel.send(embed=embed)
+                self.logger.warning(f"Large transaction alert for {growid}: {old_balance} -> {new_balance} (diff: {diff:,} WLS)")
         
         # Register additional callbacks
         self.balance_service.callback_manager.register('balance_checked', notify_low_balance)

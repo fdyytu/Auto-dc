@@ -11,7 +11,7 @@ import logging
 
 from config.constants import COLORS, MESSAGES
 from services.product_service import ProductService
-from services.balance_service import BalanceService
+from services.balance_service import BalanceManagerService
 from services.transaction_service import TransactionService
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ class QuantityModal(Modal):
                 raise ValueError(MESSAGES.ERROR['INVALID_AMOUNT'])
 
             product_service = ProductService(interaction.client.db_manager)
-            balance_service = BalanceService(interaction.client.db_manager)
+            balance_service = BalanceManagerService(interaction.client)
             trx_manager = TransactionService(interaction.client.db_manager)
 
             # Get product details
