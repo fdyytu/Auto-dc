@@ -107,10 +107,18 @@ class EnhancedLoggingHandler(commands.Cog):
         """Log message activity with debug info"""
         if message.author.bot:
             return
+        
+        # Handle DMChannel vs Guild Channel
+        if hasattr(message.channel, 'name'):
+            # Guild channel
+            channel_info = f"#{message.channel.name} ({message.guild.name})"
+        else:
+            # DM channel
+            channel_info = f"DM with {message.author}"
             
         log_msg = (
             f"Message by {message.author} (ID: {message.author.id}) "
-            f"in #{message.channel.name} ({message.guild.name})"
+            f"in {channel_info}"
         )
         
         if self.debug_mode:
@@ -127,9 +135,17 @@ class EnhancedLoggingHandler(commands.Cog):
         # Start performance tracking
         self.performance_metrics[cmd_name] = timestamp
         
+        # Handle DMChannel vs Guild Channel
+        if hasattr(ctx.channel, 'name'):
+            # Guild channel
+            channel_info = f"#{ctx.channel.name}"
+        else:
+            # DM channel
+            channel_info = f"DM with {ctx.author}"
+        
         log_msg = (
             f"Command '{cmd_name}' used by {ctx.author} "
-            f"(ID: {ctx.author.id}) in #{ctx.channel.name}"
+            f"(ID: {ctx.author.id}) in {channel_info}"
         )
         
         if self.debug_mode:

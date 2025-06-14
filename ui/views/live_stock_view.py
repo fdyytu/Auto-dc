@@ -290,13 +290,18 @@ class LiveStockManager(BaseLockHandler):
                 await self.current_stock_message.edit(embed=embed)
 
             # Clear caches dengan pattern yang spesifik
-            patterns = [
-                'live_stock_*',
-                'stock_count_*',
-                'all_products_display'
+            cache_keys = [
+                'live_stock_message_id',
+                'stock_count_all',
+                'all_products_display',
+                'world_info',
+                'available_products'
             ]
-            for pattern in patterns:
-                await self.cache_manager.delete_pattern(pattern)
+            for key in cache_keys:
+                try:
+                    await self.cache_manager.delete(key)
+                except Exception as cache_error:
+                    self.logger.debug(f"Failed to delete cache key {key}: {cache_error}")
 
             self.logger.info("LiveStockManager cleanup completed")
 
@@ -395,24 +400,28 @@ class LiveStockCog(commands.Cog):
 
 async def setup(bot):
     """Setup cog dengan proper error handling"""
+    logger = logging.getLogger("LiveStockCog.setup")
     try:
         if not hasattr(bot, COG_LOADED['LIVE_STOCK']):
+            logger.info("Setting up LiveStockCog...")
             cog = LiveStockCog(bot)
             await bot.add_cog(cog)
+            logger.info("LiveStockCog added to bot")
             
-            # Tunggu stock manager ready
+            # Tunggu stock manager ready dengan timeout yang lebih panjang
             try:
-                async with asyncio.timeout(5):  # 5 detik timeout
+                async with asyncio.timeout(10):  # 10 detik timeout
                     await cog.stock_manager._ready.wait()
+                    logger.info("Stock manager is ready")
             except asyncio.TimeoutError:
-                logging.error("Timeout waiting for stock manager initialization")
+                logger.error("Timeout waiting for stock manager initialization")
                 raise RuntimeError("Stock manager initialization timeout")
                 
             setattr(bot, COG_LOADED['LIVE_STOCK'], True)
-            logging.info(f'LiveStock cog loaded at {datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")} UTC')
+            logger.info(f'LiveStock cog loaded at {datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")} UTC')
             return True
     except Exception as e:
-        logging.error(f"Failed to load LiveStock cog: {e}")
+        logger.error(f"Failed to load LiveStock cog: {e}", exc_info=True)
         if hasattr(bot, COG_LOADED['LIVE_STOCK']):
             delattr(bot, COG_LOADED['LIVE_STOCK'])
         raise

@@ -937,25 +937,30 @@ class LiveButtonsCog(commands.Cog):
         """Wait for stock manager to be available"""
         try:
             start_time = datetime.utcnow()
+            self.logger.info(f"Waiting for StockManager (timeout: {timeout}s)...")
 
             while (datetime.utcnow() - start_time).total_seconds() < timeout:
-                self.logger.info("Attempting to get StockManager...")
+                self.logger.debug("Attempting to get StockManager...")
                 stock_cog = self.bot.get_cog('LiveStockCog')
 
                 if stock_cog and hasattr(stock_cog, 'stock_manager'):
                     self.logger.info("Found StockManager")
                     self.stock_manager = stock_cog.stock_manager
-                    if self.stock_manager and self.stock_manager._ready.is_set():
+                    if self.stock_manager and hasattr(self.stock_manager, '_ready') and self.stock_manager._ready.is_set():
                         self.logger.info("StockManager is ready")
                         return True
+                    else:
+                        self.logger.debug("StockManager found but not ready yet")
+                else:
+                    self.logger.debug("LiveStockCog or stock_manager not found")
 
                 await asyncio.sleep(2)
 
-            self.logger.error("Timeout waiting for StockManager")
+            self.logger.error(f"Timeout waiting for StockManager after {timeout}s")
             return False
 
         except Exception as e:
-            self.logger.error(f"Error waiting for stock manager: {e}")
+            self.logger.error(f"Error waiting for stock manager: {e}", exc_info=True)
             return False
 
     async def initialize_dependencies(self) -> bool:
@@ -972,12 +977,16 @@ class LiveButtonsCog(commands.Cog):
                 if not self.bot.is_ready():
                     self.logger.info("Waiting for bot to be ready...")
                     await self.bot.wait_until_ready()
+                    self.logger.info("Bot is ready")
 
                 # Wait for stock manager
+                self.logger.info("Waiting for stock manager...")
                 if not await self.wait_for_stock_manager():
+                    self.logger.error("Failed to get stock manager")
                     return False
 
                 # Set stock manager to button manager
+                self.logger.info("Setting stock manager to button manager...")
                 await self.button_manager.set_stock_manager(self.stock_manager)
 
                 self._ready.set()
@@ -985,7 +994,7 @@ class LiveButtonsCog(commands.Cog):
                 return True
 
         except Exception as e:
-            self.logger.error(f"Error initializing dependencies: {e}")
+            self.logger.error(f"Error initializing dependencies: {e}", exc_info=True)
             return False
 
     async def cog_load(self):
@@ -1048,32 +1057,36 @@ class LiveButtonsCog(commands.Cog):
 
 async def setup(bot):
     """Setup cog with proper error handling"""
+    logger = logging.getLogger("LiveButtonsCog.setup")
     try:
         if not hasattr(bot, COG_LOADED['LIVE_BUTTONS']):
-            # Make sure LiveStockCog is loaded first
+            logger.info("Setting up LiveButtonsCog...")
+            
+            # Tunggu LiveStockCog tersedia (sudah diload oleh sistem)
+            # TIDAK load manual untuk menghindari duplikasi
             stock_cog = bot.get_cog('LiveStockCog')
             if not stock_cog:
-                logging.info("Loading LiveStockCog first...")
-                await bot.load_extension('ext.live_stock')
-                await asyncio.sleep(2)  # Give time for LiveStockCog to initialize
+                logger.warning("LiveStockCog not found, will wait for it during initialization")
 
             cog = LiveButtonsCog(bot)
             await bot.add_cog(cog)
+            logger.info("LiveButtonsCog added to bot")
 
             # Wait for initialization with timeout
             try:
                 async with asyncio.timeout(45):
                     await cog._ready.wait()
+                    logger.info("LiveButtonsCog initialization completed")
             except asyncio.TimeoutError:
-                logging.error("LiveButtonsCog initialization timed out")
+                logger.error("LiveButtonsCog initialization timed out")
                 await bot.remove_cog('LiveButtonsCog')
                 raise RuntimeError("Initialization timed out")
 
             setattr(bot, COG_LOADED['LIVE_BUTTONS'], True)
-            logging.info("LiveButtons cog loaded successfully")
+            logger.info("LiveButtons cog loaded successfully")
 
     except Exception as e:
-        logging.error(f"Failed to load LiveButtonsCog: {e}")
+        logger.error(f"Failed to load LiveButtonsCog: {e}", exc_info=True)
         if hasattr(bot, COG_LOADED['LIVE_BUTTONS']):
             delattr(bot, COG_LOADED['LIVE_BUTTONS'])
         raise
