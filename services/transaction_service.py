@@ -20,22 +20,19 @@ from datetime import datetime
 import discord
 from discord.ext import commands
 
-from .constants import (
+from config.constants.bot_constants import (
     Status,
     TransactionType,
     Balance,
-    TransactionError,
     MESSAGES,
     CACHE_TIMEOUT,
-    COLORS,
-    EVENTS,
-    NOTIFICATION_CHANNELS
+    COLORS
 )
 from database import get_connection
-from .base_handler import BaseLockHandler
-from .cache_manager import CacheManager
-from .product_manager import ProductManagerService
-from .balance_manager import BalanceManagerService
+from utils.base_handler import BaseLockHandler
+from services.cache_service import CacheManager
+from services.product_service import ProductService
+from services.balance_service import BalanceManagerService
 
 class TransactionCallbackManager:
     """Callback manager untuk transaction service"""
@@ -125,7 +122,7 @@ class TransactionManager(BaseLockHandler):
             self.bot = bot
             self.logger = logging.getLogger("TransactionManager")
             self.cache_manager = CacheManager()
-            self.product_manager = ProductManagerService(bot)
+            self.product_manager = ProductService(bot.db_manager)
             self.balance_manager = BalanceManagerService(bot)
             self.callback_manager = TransactionCallbackManager()
             self.setup_default_callbacks()
@@ -136,31 +133,11 @@ class TransactionManager(BaseLockHandler):
         
         async def notify_transaction_completed(transaction_type: str, **data):
             """Notifikasi untuk transaksi yang berhasil"""
-            channel_id = NOTIFICATION_CHANNELS.get('transactions')
-            if channel := self.bot.get_channel(channel_id):
-                embed = discord.Embed(
-                    title=f"{transaction_type.title()} Completed",
-                    description="Transaction processed successfully",
-                    color=COLORS.SUCCESS
-                )
-                for key, value in data.items():
-                    embed.add_field(name=key.replace('_', ' ').title(), 
-                                  value=str(value))
-                await channel.send(embed=embed)
+            self.logger.info(f"Transaction completed: {transaction_type} - {data}")
         
         async def notify_transaction_failed(error: str, **data):
             """Notifikasi untuk transaksi yang gagal"""
-            channel_id = NOTIFICATION_CHANNELS.get('error_logs')
-            if channel := self.bot.get_channel(channel_id):
-                embed = discord.Embed(
-                    title="Transaction Failed",
-                    description=error,
-                    color=COLORS.ERROR
-                )
-                for key, value in data.items():
-                    embed.add_field(name=key.replace('_', ' ').title(), 
-                                  value=str(value))
-                await channel.send(embed=embed)
+            self.logger.error(f"Transaction failed: {error} - {data}")
         
         # Register default callbacks
         self.callback_manager.register('transaction_completed', 
@@ -600,7 +577,7 @@ class TransactionManager(BaseLockHandler):
     
         except Exception as e:
             self.logger.error(f"Error getting transaction history: {e}")
-            if isinstance(e, ProductError):
+            if isinstance(e, Exception):
                 return TransactionResponse.error(
                     MESSAGES.ERROR['PRODUCT_NOT_FOUND'],
                     str(e)
@@ -636,35 +613,11 @@ class TransactionCog(commands.Cog):
         async def monitor_large_transactions(**data):
             """Monitor transaksi dalam jumlah besar"""
             if 'total_wl' in data and data['total_wl'] > 100000:  # 100K WL threshold
-                channel_id = NOTIFICATION_CHANNELS.get('admin_logs')
-                if channel := self.bot.get_channel(channel_id):
-                    embed = discord.Embed(
-                        title="Large Transaction Alert",
-                        description="Transaction above 100K WL detected",
-                        color=COLORS.WARNING
-                    )
-                    for key, value in data.items():
-                        embed.add_field(
-                            name=key.replace('_', ' ').title(),
-                            value=str(value)
-                        )
-                    await channel.send(embed=embed)
+                self.logger.warning(f"Large transaction alert: {data}")
         
         async def monitor_failed_transactions(error: str, **data):
             """Monitor transaksi yang gagal"""
-            channel_id = NOTIFICATION_CHANNELS.get('error_logs')
-            if channel := self.bot.get_channel(channel_id):
-                embed = discord.Embed(
-                    title="Transaction Failed",
-                    description=error,
-                    color=COLORS.ERROR
-                )
-                for key, value in data.items():
-                    embed.add_field(
-                        name=key.replace('_', ' ').title(),
-                        value=str(value)
-                    )
-                await channel.send(embed=embed)
+            self.logger.error(f"Transaction failed: {error} - {data}")
         
         async def monitor_quick_transactions(**data):
             """Monitor transaksi yang terlalu cepat dari user yang sama"""
@@ -685,7 +638,7 @@ async def setup(bot):
     """Setup function untuk menambahkan cog ke bot"""
     if not hasattr(bot, 'transaction_manager_loaded'):
         # Verify dependencies dulu
-        product_manager = ProductManagerService(bot)
+        product_manager = ProductService(bot.db_manager)
         balance_manager = BalanceManagerService(bot)
         
         # Check if required managers are loaded

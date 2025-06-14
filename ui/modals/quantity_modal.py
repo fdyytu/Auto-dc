@@ -12,7 +12,7 @@ import logging
 from config.constants import COLORS, MESSAGES
 from services.product_service import ProductService
 from services.balance_service import BalanceManagerService
-from services.transaction_service import TransactionService
+from services.transaction_service import TransactionManager
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ class QuantityModal(Modal):
 
             product_service = ProductService(interaction.client.db_manager)
             balance_service = BalanceManagerService(interaction.client)
-            trx_manager = TransactionService(interaction.client.db_manager)
+            trx_manager = TransactionManager(interaction.client)
 
             # Get product details
             product_response = await product_service.get_product(self.product_code)
