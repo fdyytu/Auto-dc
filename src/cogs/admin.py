@@ -6,6 +6,7 @@ Menangani command admin dengan struktur yang lebih bersih
 import discord
 from discord.ext import commands
 import logging
+import asyncio
 from datetime import datetime
 from typing import Optional
 
@@ -33,16 +34,16 @@ class AdminCog(commands.Cog):
     async def cog_check(self, ctx: commands.Context) -> bool:
         """Cek permission admin"""
         admin_id = self.config.get('admin_id')
-        admin_roles = self.config.get_roles().get('admin')
+        admin_role_id = self.config.get_roles().get('admin')
         
         # Cek admin ID
         if ctx.author.id == admin_id:
             return True
         
         # Cek admin role
-        if admin_roles:
-            user_roles = [role.id for role in ctx.author.roles]
-            if admin_roles in user_roles:
+        if admin_role_id:
+            user_role_ids = [role.id for role in ctx.author.roles]
+            if admin_role_id in user_role_ids:
                 return True
         
         return False
@@ -432,6 +433,75 @@ class AdminCog(commands.Cog):
         except Exception as e:
             logger.error(f"Error removing world: {e}")
             await ctx.send(embed=message_formatter.error_embed("Terjadi error"))
+    
+    @commands.command(name="restart")
+    async def restart_bot(self, ctx):
+        """Restart bot server"""
+        try:
+            # Konfirmasi restart
+            embed = discord.Embed(
+                title="🔄 Restart Bot",
+                description="Apakah Anda yakin ingin me-restart bot?\nBot akan offline sementara.",
+                color=0xff9900
+            )
+            embed.add_field(
+                name="⚠️ Peringatan", 
+                value="Semua proses yang sedang berjalan akan dihentikan.", 
+                inline=False
+            )
+            embed.set_footer(text="Ketik 'ya' untuk konfirmasi atau 'tidak' untuk membatalkan")
+            
+            await ctx.send(embed=embed)
+            
+            # Tunggu konfirmasi
+            def check(message):
+                return (message.author == ctx.author and 
+                       message.channel == ctx.channel and 
+                       message.content.lower() in ['ya', 'tidak', 'yes', 'no'])
+            
+            try:
+                response = await self.bot.wait_for('message', check=check, timeout=30.0)
+                
+                if response.content.lower() in ['ya', 'yes']:
+                    # Kirim pesan restart
+                    restart_embed = discord.Embed(
+                        title="🔄 Restarting...",
+                        description="Bot sedang di-restart. Mohon tunggu beberapa saat...",
+                        color=0x00ff00
+                    )
+                    await ctx.send(embed=restart_embed)
+                    
+                    logger.info(f"Bot restart diminta oleh {ctx.author} ({ctx.author.id})")
+                    
+                    # Cleanup dan restart
+                    await self.bot.close()
+                    
+                    # Import untuk restart
+                    import os
+                    import sys
+                    
+                    # Restart menggunakan execv
+                    os.execv(sys.executable, ['python'] + sys.argv)
+                    
+                else:
+                    cancel_embed = discord.Embed(
+                        title="❌ Restart Dibatalkan",
+                        description="Restart bot dibatalkan.",
+                        color=0xff0000
+                    )
+                    await ctx.send(embed=cancel_embed)
+                    
+            except asyncio.TimeoutError:
+                timeout_embed = discord.Embed(
+                    title="⏰ Timeout",
+                    description="Konfirmasi restart timeout. Restart dibatalkan.",
+                    color=0xff0000
+                )
+                await ctx.send(embed=timeout_embed)
+                
+        except Exception as e:
+            logger.error(f"Error restart command: {e}")
+            await ctx.send(embed=message_formatter.error_embed("Terjadi error saat restart"))
 
 async def setup(bot):
     """Setup admin cog"""
