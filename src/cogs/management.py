@@ -435,12 +435,7 @@ class Management(commands.Cog):
         await asyncio.sleep(3)
         await msg.delete()
 
-    @clean.command(name="bots")
-    async def clean_bot_messages(self, ctx, amount: int = 100):
-        """Clean bot messages"""
-        if amount < 1:
-            return await ctx.send("❌ Amount must be positive!")
-            
+
     @clean.command(name="bots")
     async def clean_bot_messages(self, ctx, amount: int = 100):
         """Clean bot messages"""

@@ -68,10 +68,10 @@ class StoreBot(commands.Bot):
     async def _load_extensions(self):
         """Load semua extensions dan cogs"""
         extensions = [
-            'cogs.admin', 'cogs.automod', 'cogs.help_manager',
-            'cogs.leveling', 'cogs.logging_handler', 'cogs.management',
-            'cogs.reputation', 'cogs.stats', 'cogs.tickets',
-            'cogs.welcome'
+            'src.cogs.admin', 'src.cogs.automod', 'src.cogs.help_manager',
+            'src.cogs.leveling', 'src.cogs.management',
+            'src.cogs.reputation', 'src.cogs.stats', 'src.cogs.tickets',
+            'src.cogs.welcome'
         ]
         
         for ext in extensions:
