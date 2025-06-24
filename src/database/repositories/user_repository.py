@@ -5,8 +5,8 @@ Menangani operasi database untuk user
 
 import logging
 from typing import Optional, List
-from database.connection import DatabaseManager
-from database.models import User, UserGrowID
+from src.database.connection import DatabaseManager
+from src.database.models import User, UserGrowID
 
 logger = logging.getLogger(__name__)
 

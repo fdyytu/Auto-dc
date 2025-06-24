@@ -9,7 +9,7 @@ import discord
 import logging
 from typing import List, Optional
 
-from business.reputation.reputation_service import ReputationService
+from src.business.reputation.reputation_service import ReputationService
 
 logger = logging.getLogger(__name__)
 

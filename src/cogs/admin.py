@@ -9,13 +9,13 @@ import logging
 from datetime import datetime
 from typing import Optional
 
-from core.config import config_manager
-from services.user_service import UserService
-from services.product_service import ProductService
-from services.world_service import WorldService
-from handlers.command_handler import CommandHandler
-from utils.formatters import message_formatter
-from utils.validators import input_validator
+from src.bot.config import config_manager
+from src.services.user_service import UserService
+from src.services.product_service import ProductService
+from src.services.world_service import WorldService
+from src.handlers.command_handler import CommandHandler
+from src.utils.formatters import message_formatter
+from src.utils.validators import input_validator
 
 logger = logging.getLogger(__name__)
 

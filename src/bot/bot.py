@@ -9,11 +9,11 @@ import asyncio
 import logging
 from typing import Optional
 
-from core.config import config_manager
-from core.logging import logging_manager
-from core.hot_reload import HotReloadManager
-from services.cache_service import CacheManager
-from database.connection import DatabaseManager
+from src.bot.config import config_manager
+from src.bot.logging import logging_manager
+from src.bot.hot_reload import HotReloadManager
+from src.services.cache_service import CacheManager
+from src.database.connection import DatabaseManager
 
 logger = logging.getLogger(__name__)
 

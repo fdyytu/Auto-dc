@@ -9,12 +9,12 @@ import logging
 from typing import List, Dict, Optional
 from datetime import datetime
 
-from config.constants import MESSAGES, COLORS
-from data.models.balance import Balance
-from services.product_service import ProductService
-from services.balance_service import BalanceService
-from services.transaction_service import TransactionService
-from services.admin_service import AdminService
+from src.config.constants import MESSAGES, COLORS
+from src.database.models.balance import Balance
+from src.services.product_service import ProductService
+from src.services.balance_service import BalanceService
+from src.services.transaction_service import TransactionService
+from src.services.admin_service import AdminService
 
 logger = logging.getLogger(__name__)
 

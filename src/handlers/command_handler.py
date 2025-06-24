@@ -8,9 +8,9 @@ from typing import Optional, Dict, Any, Callable
 from discord.ext import commands
 import discord
 
-from services.user_service import UserService
-from services.product_service import ProductService
-from core.config import config_manager
+from src.services.user_service import UserService
+from src.services.product_service import ProductService
+from src.bot.config import config_manager
 
 logger = logging.getLogger(__name__)
 

@@ -10,8 +10,8 @@ from discord.ui import Select
 from typing import List, Dict
 import logging
 
-from config.constants import COLORS, MESSAGES
-from ui.modals.quantity_modal import QuantityModal
+from src.config.constants import COLORS, MESSAGES
+from src.ui.modals.quantity_modal import QuantityModal
 
 logger = logging.getLogger(__name__)
 

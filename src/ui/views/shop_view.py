@@ -13,15 +13,15 @@ import asyncio
 from datetime import datetime
 from typing import Dict
 
-from config.constants import COLORS, MESSAGES, BUTTON_IDS, CURRENCY_RATES
-from data.models.balance import Balance
-from services.product_service import ProductService
-from services.balance_service import BalanceManagerService
-from services.transaction_service import TransactionManager
-from services.admin_service import AdminService
-from services.cache_service import CacheManager
-from ui.modals.register_modal import RegisterModal
-from ui.selects.product_select import ProductSelect
+from src.config.constants import COLORS, MESSAGES, BUTTON_IDS, CURRENCY_RATES
+from src.database.models.balance import Balance
+from src.services.product_service import ProductService
+from src.services.balance_service import BalanceManagerService
+from src.services.transaction_service import TransactionManager
+from src.services.admin_service import AdminService
+from src.services.cache_service import CacheManager
+from src.ui.modals.register_modal import RegisterModal
+from src.ui.selects.product_select import ProductSelect
 
 logger = logging.getLogger(__name__)
 

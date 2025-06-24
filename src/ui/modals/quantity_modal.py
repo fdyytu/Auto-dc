@@ -9,10 +9,10 @@ import discord
 from discord.ui import Modal, TextInput
 import logging
 
-from config.constants import COLORS, MESSAGES
-from services.product_service import ProductService
-from services.balance_service import BalanceManagerService
-from services.transaction_service import TransactionManager
+from src.config.constants import COLORS, MESSAGES
+from src.services.product_service import ProductService
+from src.services.balance_service import BalanceManagerService
+from src.services.transaction_service import TransactionManager
 
 logger = logging.getLogger(__name__)
 

@@ -10,10 +10,10 @@ from discord.ext import commands, tasks
 import logging
 from typing import Optional
 
-from business.reputation.reputation_service import ReputationService
-from business.reputation.role_handler import ReputationRoleHandler
-from config.constants import COLORS
-from cogs.utils import Embed
+from src.business.reputation.reputation_service import ReputationService
+from src.business.reputation.role_handler import ReputationRoleHandler
+from src.config.constants import COLORS
+from src.cogs.utils import Embed
 
 logger = logging.getLogger(__name__)
 

@@ -37,7 +37,7 @@ class DatabaseManager:
             
             # Setup database jika belum ada
             if not self.db_path.exists():
-                from database.migrations import setup_database
+                from src.database.migrations import setup_database
                 if not await setup_database():
                     return False
             

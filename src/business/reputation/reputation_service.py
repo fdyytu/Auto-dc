@@ -9,7 +9,7 @@ import logging
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 
-from data.repositories.reputation_repository import ReputationRepository
+from src.database.repositories.reputation_repository import ReputationRepository
 
 logger = logging.getLogger(__name__)
 
@@ -177,7 +177,7 @@ class ReputationService:
             else:
                 return {
                     'success': False,
-                    'error': "Failed to remove reputation from database."
+                    'error': "Failed to remove reputation from src.database."
                 }
                 
         except Exception as e:

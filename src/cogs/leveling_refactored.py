@@ -10,10 +10,10 @@ from discord.ext import commands, tasks
 import logging
 from typing import Optional
 
-from business.leveling.leveling_service import LevelingService
-from business.leveling.reward_handler import LevelingRewardHandler
-from config.constants import COLORS
-from cogs.utils import Embed
+from src.business.leveling.leveling_service import LevelingService
+from src.business.leveling.reward_handler import LevelingRewardHandler
+from src.config.constants import COLORS
+from src.cogs.utils import Embed
 
 logger = logging.getLogger(__name__)
 

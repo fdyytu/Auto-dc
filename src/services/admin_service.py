@@ -14,8 +14,8 @@ from discord import ui
 from typing import Dict, Optional
 from datetime import datetime
 
-from utils.base_handler import BaseLockHandler
-from services.cache_service import CacheManager
+from src.utils.base_handler import BaseLockHandler
+from src.services.cache_service import CacheManager
 
 class AdminService(BaseLockHandler):
     _instance = None
