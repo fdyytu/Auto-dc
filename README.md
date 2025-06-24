@@ -29,8 +29,17 @@ Auto-dc/
 │   │   ├── selects/       # Discord select menus
 │   │   └── views/         # Discord views
 │   ├── utils/             # Utility functions
+│   │   ├── advanced_command_handler.py  # Analytics & monitoring
+│   │   ├── base_handler.py             # Base classes
+│   │   ├── formatters.py               # Message formatting
+│   │   ├── validators.py               # Input validation
+│   │   ├── response_formatter.py       # Discord response formatting
+│   │   └── permission_validator.py     # Permission validation
 │   ├── config/            # Configuration files
-│   ├── handlers/          # Event handlers
+│   ├── handlers/          # Business logic handlers
+│   │   ├── business_command_handler.py  # Business logic commands
+│   │   ├── transaction_handler.py       # Transaction processing
+│   │   └── user_registration_handler.py # User registration workflow
 │   ├── logs/              # Log files
 │   └── ext/               # Extensions
 ├── docs/                  # Dokumentasi
@@ -124,3 +133,26 @@ python -m pytest tests/test_services.py
 ## 👥 Authors
 
 - fdyyuk - Initial work and restructuring
+
+## 🔄 Recent Changes
+
+### Handlers vs Utils Separation
+- **Handlers** (`src/handlers/`): Business logic handlers
+  - `business_command_handler.py` - Business logic commands
+  - `transaction_handler.py` - Transaction processing
+  - `user_registration_handler.py` - User registration workflow
+
+- **Utils** (`src/utils/`): Reusable utility functions
+  - `advanced_command_handler.py` - Analytics & monitoring
+  - `response_formatter.py` - Discord response formatting
+  - `permission_validator.py` - Permission validation
+  - `base_handler.py` - Base classes
+  - `formatters.py` - Message formatting
+  - `validators.py` - Input validation
+
+### Key Improvements
+- ✅ Menghilangkan duplikasi file `command_handler.py`
+- ✅ Separation of concerns yang jelas antara handlers dan utils
+- ✅ Handler baru untuk transaksi dan registrasi user
+- ✅ Utility baru untuk formatting dan validasi
+- ✅ Struktur yang lebih terorganisir dan maintainable

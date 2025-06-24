@@ -13,7 +13,7 @@ from src.bot.config import config_manager
 from src.services.user_service import UserService
 from src.services.product_service import ProductService
 from src.services.world_service import WorldService
-from src.handlers.command_handler import CommandHandler
+from src.handlers.business_command_handler import CommandHandler
 from src.utils.formatters import message_formatter
 from src.utils.validators import input_validator
 
