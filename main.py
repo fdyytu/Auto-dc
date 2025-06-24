@@ -16,11 +16,12 @@ from dotenv import load_dotenv
 # Add project root to Python path
 project_root = Path(__file__).parent
 sys.path.append(str(project_root))
+sys.path.append(str(project_root / "src"))
 
 # Import core modules
-from config.logging_config import setup_centralized_logging, get_logger
-from core.startup import startup_manager
-from core.bot import StoreBot
+from src.config.logging_config import setup_centralized_logging, get_logger
+from src.bot.startup import startup_manager
+from src.bot.bot import StoreBot
 
 async def main():
     """Fungsi utama untuk menjalankan bot"""
