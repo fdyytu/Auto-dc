@@ -51,7 +51,7 @@ class ConfigManager:
         if missing_keys:
             raise KeyError(f"Kunci konfigurasi yang hilang: {', '.join(missing_keys)}")
         
-        # Validasi tipe data
+        # Validasi tipe data untuk keys utama
         int_keys = ['guild_id', 'admin_id', 'id_live_stock', 'id_log_purch', 
                    'id_donation_log', 'id_history_buy']
         
@@ -61,6 +61,24 @@ class ConfigManager:
                     self._config[key] = int(self._config[key])
                 except (ValueError, TypeError):
                     raise ValueError(f"Konfigurasi {key} harus berupa integer")
+        
+        # Validasi dan konversi roles
+        if 'roles' in self._config:
+            roles = self._config['roles']
+            for role_name, role_id in roles.items():
+                try:
+                    self._config['roles'][role_name] = int(role_id)
+                except (ValueError, TypeError):
+                    raise ValueError(f"Role {role_name} harus berupa integer")
+        
+        # Validasi dan konversi channels
+        if 'channels' in self._config:
+            channels = self._config['channels']
+            for channel_name, channel_id in channels.items():
+                try:
+                    self._config['channels'][channel_name] = int(channel_id)
+                except (ValueError, TypeError):
+                    raise ValueError(f"Channel {channel_name} harus berupa integer")
     
     def get(self, key: str, default: Any = None) -> Any:
         """Ambil nilai konfigurasi"""
