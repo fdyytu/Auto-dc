@@ -20,19 +20,43 @@ from datetime import datetime
 import discord
 from discord.ext import commands
 
-from src.config.constants.bot_constants import (
-    Status,
-    TransactionType,
-    Balance,
-    MESSAGES,
-    CACHE_TIMEOUT,
-    COLORS
-)
+from src.database.models.balance import Balance
+from src.database.models.transaction import TransactionType, TransactionStatus
+from src.database.models.product import Product, Stock, StockStatus
 from database import get_connection
 from src.utils.base_handler import BaseLockHandler
 from src.services.cache_service import CacheManager
 from src.services.product_service import ProductService
 from src.services.balance_service import BalanceManagerService
+from src.services.base_service import ServiceResponse
+
+# Constants sementara - perlu dipindah ke file constants yang proper
+MESSAGES = {
+    'SUCCESS': {
+        'BALANCE_UPDATE': 'Balance berhasil diupdate',
+        'TRANSACTION_SUCCESS': 'Transaksi berhasil'
+    },
+    'ERROR': {
+        'PRODUCT_NOT_FOUND': 'Product tidak ditemukan',
+        'DATABASE_ERROR': 'Terjadi kesalahan database',
+        'TRANSACTION_FAILED': 'Transaksi gagal',
+        'INSUFFICIENT_BALANCE': 'Balance tidak mencukupi',
+        'NO_HISTORY': 'Tidak ada riwayat transaksi'
+    }
+}
+
+CACHE_TIMEOUT = {
+    'SHORT': 300,  # 5 minutes
+    'MEDIUM': 1800,  # 30 minutes
+    'LONG': 3600,  # 1 hour
+    'get_seconds': lambda self, timeout: timeout
+}
+
+COLORS = {
+    'SUCCESS': 0x00ff00,
+    'ERROR': 0xff0000,
+    'WARNING': 0xffff00
+}
 
 class TransactionCallbackManager:
     """Callback manager untuk transaction service"""
@@ -204,7 +228,7 @@ class TransactionManager(BaseLockHandler):
             stock_update_response = await self.product_manager.update_stock_status(
                 product_code,
                 [item['id'] for item in available_stock[:quantity]],
-                Status.SOLD.value,
+                        StockStatus.SOLD.value,
                 buyer_id
             )
             if not stock_update_response.success:
@@ -222,7 +246,7 @@ class TransactionManager(BaseLockHandler):
                 await self.product_manager.update_stock_status(
                     product_code,
                     [item['id'] for item in available_stock[:quantity]],
-                    Status.AVAILABLE.value,
+                     StockStatus.AVAILABLE.value,
                     None
                 )
                 return TransactionResponse.error(balance_update_response.error)
