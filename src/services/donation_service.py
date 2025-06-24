@@ -5,15 +5,26 @@ from datetime import datetime
 import json
 import re
 from database import get_connection
-from .constants import (
-    Balance,         
-    TransactionError,
-    CURRENCY_RATES,  
-    MESSAGES,       
-    TransactionType, 
-    COLORS,
-    PATHS
-)
+from src.database.models.balance import Balance
+from src.database.models.transaction import TransactionType
+from src.services.base_service import ServiceResponse
+
+# Constants yang diperlukan - sementara hardcode sampai constants diperbaiki
+CURRENCY_RATES = {
+    'RATES': {
+        'DL': 100,
+        'BGL': 10000
+    }
+}
+
+COLORS = {
+    'SUCCESS': 0x00ff00,
+    'ERROR': 0xff0000
+}
+
+PATHS = {
+    'CONFIG': 'config.json'  # Adjust path sesuai kebutuhan
+}
 
 # Load config sekali saat modul di-import
 try:
@@ -234,8 +245,8 @@ async def setup(bot):
         donation_cog = Donation(bot)
         
         # Get balance manager instance
-        from .balance_manager import BalanceManager
-        donation_cog.manager.balance_manager = BalanceManager(bot)
+        from .balance_service import BalanceManagerService
+        donation_cog.manager.balance_manager = BalanceManagerService(bot)
         
         await bot.add_cog(donation_cog)
         bot.donation_cog_loaded = True
