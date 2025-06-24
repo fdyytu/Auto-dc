@@ -71,7 +71,7 @@ class StoreBot(commands.Bot):
             'src.cogs.admin', 'src.cogs.automod', 'src.cogs.help_manager',
             'src.cogs.leveling', 'src.cogs.management',
             'src.cogs.reputation', 'src.cogs.stats', 'src.cogs.tickets',
-            'src.cogs.welcome'
+            'src.cogs.welcome', 'src.cogs.debug'
         ]
         
         for ext in extensions:
