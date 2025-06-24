@@ -32,19 +32,62 @@ class AdminCog(commands.Cog):
         self.command_handler = CommandHandler(self.user_service, self.product_service)
     
     async def cog_check(self, ctx: commands.Context) -> bool:
-        """Cek permission admin"""
+        """Cek permission admin dengan logging detail"""
         admin_id = self.config.get('admin_id')
         admin_role_id = self.config.get_roles().get('admin')
         
+        # Log informasi debug
+        logger.info(f"🔍 Admin check untuk user: {ctx.author.name} (ID: {ctx.author.id})")
+        logger.info(f"📋 Admin ID dari config: {admin_id} (tipe: {type(admin_id)})")
+        logger.info(f"📋 Admin Role ID dari config: {admin_role_id} (tipe: {type(admin_role_id)})")
+        
         # Cek admin ID
         if ctx.author.id == admin_id:
+            logger.info(f"✅ User {ctx.author.name} dikenali sebagai admin berdasarkan User ID")
             return True
+        else:
+            logger.info(f"❌ User ID {ctx.author.id} tidak cocok dengan admin ID {admin_id}")
         
         # Cek admin role
         if admin_role_id:
             user_role_ids = [role.id for role in ctx.author.roles]
+            logger.info(f"👥 Role user: {[f'{role.name}({role.id})' for role in ctx.author.roles]}")
+            logger.info(f"🔍 Mencari admin role ID {admin_role_id} dalam role user: {user_role_ids}")
+            
             if admin_role_id in user_role_ids:
+                logger.info(f"✅ User {ctx.author.name} dikenali sebagai admin berdasarkan Role")
                 return True
+            else:
+                logger.info(f"❌ Admin role ID {admin_role_id} tidak ditemukan dalam role user")
+        else:
+            logger.info("⚠️ Admin role ID tidak dikonfigurasi")
+        
+        logger.warning(f"🚫 User {ctx.author.name} (ID: {ctx.author.id}) TIDAK dikenali sebagai admin")
+        
+        # Kirim pesan error yang informatif
+        embed = discord.Embed(
+            title="🚫 Akses Ditolak",
+            description="Anda tidak memiliki izin untuk menggunakan command admin.",
+            color=0xff0000
+        )
+        embed.add_field(
+            name="ℹ️ Info",
+            value=f"Command admin hanya dapat digunakan oleh:\n"
+                  f"• User dengan ID: `{admin_id}`\n"
+                  f"• User dengan role admin (ID: `{admin_role_id}`)",
+            inline=False
+        )
+        embed.add_field(
+            name="🔍 Debug Info",
+            value=f"Your ID: `{ctx.author.id}`\n"
+                  f"Your Roles: {', '.join([f'`{role.name}`' for role in ctx.author.roles])}",
+            inline=False
+        )
+        
+        try:
+            await ctx.send(embed=embed, delete_after=10)
+        except:
+            pass  # Ignore jika gagal kirim pesan
         
         return False
     
@@ -434,6 +477,61 @@ class AdminCog(commands.Cog):
             logger.error(f"Error removing world: {e}")
             await ctx.send(embed=message_formatter.error_embed("Terjadi error"))
     
+    @commands.command(name="admintest")
+    @commands.check(lambda ctx: True)  # Bypass admin check untuk debugging
+    async def test_admin(self, ctx):
+        """Test admin detection - command untuk debugging"""
+        try:
+            admin_id = self.config.get('admin_id')
+            admin_role_id = self.config.get_roles().get('admin')
+            
+            embed = discord.Embed(
+                title="🔍 Admin Detection Test",
+                description="Hasil test deteksi admin:",
+                color=0x00ff00
+            )
+            
+            # Info user
+            embed.add_field(
+                name="👤 User Info",
+                value=f"Nama: {ctx.author.name}\nID: {ctx.author.id}",
+                inline=False
+            )
+            
+            # Info config
+            embed.add_field(
+                name="⚙️ Config Info",
+                value=f"Admin ID: {admin_id}\nAdmin Role ID: {admin_role_id}",
+                inline=False
+            )
+            
+            # Info roles
+            user_roles = [f"{role.name} ({role.id})" for role in ctx.author.roles]
+            embed.add_field(
+                name="👥 User Roles",
+                value="\n".join(user_roles) if user_roles else "Tidak ada role",
+                inline=False
+            )
+            
+            # Test hasil
+            is_admin_by_id = ctx.author.id == admin_id
+            user_role_ids = [role.id for role in ctx.author.roles]
+            is_admin_by_role = admin_role_id in user_role_ids if admin_role_id else False
+            
+            embed.add_field(
+                name="✅ Test Results",
+                value=f"Admin by ID: {'✅ Ya' if is_admin_by_id else '❌ Tidak'}\n"
+                      f"Admin by Role: {'✅ Ya' if is_admin_by_role else '❌ Tidak'}\n"
+                      f"Overall Admin: {'✅ Ya' if (is_admin_by_id or is_admin_by_role) else '❌ Tidak'}",
+                inline=False
+            )
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error admin test: {e}")
+            await ctx.send(embed=message_formatter.error_embed("Terjadi error saat test admin"))
+
     @commands.command(name="restart")
     async def restart_bot(self, ctx):
         """Restart bot server"""
