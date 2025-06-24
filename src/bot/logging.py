@@ -7,7 +7,7 @@ DEPRECATED: Use config.logging_config instead for centralized logging
 
 import logging
 import warnings
-from config.logging_config import logging_manager as centralized_manager
+from src.config.logging_config import logging_manager as centralized_manager
 
 # Deprecation warning
 warnings.warn(

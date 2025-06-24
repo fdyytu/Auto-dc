@@ -10,7 +10,7 @@ import random
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 
-from data.repositories.leveling_repository import LevelingRepository
+from src.database.repositories.leveling_repository import LevelingRepository
 
 logger = logging.getLogger(__name__)
 

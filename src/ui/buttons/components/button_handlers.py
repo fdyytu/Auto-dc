@@ -13,12 +13,12 @@ import asyncio
 from datetime import datetime
 from typing import Dict, Any
 
-from config.constants.bot_constants import COLORS, MESSAGES, BUTTON_IDS
-from services.balance_service import BalanceManagerService as BalanceService
-from services.product_service import ProductService
-from services.transaction_service import TransactionManager as TransactionService
-from services.admin_service import AdminService
-from services.cache_service import CacheManager
+from src.config.constants.bot_constants import COLORS, MESSAGES, BUTTON_IDS
+from src.services.balance_service import BalanceManagerService as BalanceService
+from src.services.product_service import ProductService
+from src.services.transaction_service import TransactionManager as TransactionService
+from src.services.admin_service import AdminService
+from src.services.cache_service import CacheManager
 from .modals import RegisterModal, QuantityModal
 
 class ButtonStatistics:

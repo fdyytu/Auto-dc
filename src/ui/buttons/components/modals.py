@@ -11,10 +11,10 @@ from discord.ui import Modal, TextInput
 import logging
 from typing import Optional
 
-from config.constants.bot_constants import MESSAGES, COLORS
-from services.product_service import ProductService
-from services.balance_service import BalanceManagerService as BalanceService
-from services.transaction_service import TransactionManager as TransactionService
+from src.config.constants.bot_constants import MESSAGES, COLORS
+from src.services.product_service import ProductService
+from src.services.balance_service import BalanceManagerService as BalanceService
+from src.services.transaction_service import TransactionManager as TransactionService
 
 class QuantityModal(Modal):
     """Modal untuk input jumlah pembelian"""

@@ -9,8 +9,8 @@ import discord
 from discord.ui import Modal, TextInput
 import logging
 
-from config.constants import COLORS, MESSAGES
-from services.balance_service import BalanceManagerService
+from src.config.constants import COLORS, MESSAGES
+from src.services.balance_service import BalanceManagerService
 
 logger = logging.getLogger(__name__)
 

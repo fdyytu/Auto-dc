@@ -5,8 +5,8 @@ Menangani operasi database untuk produk dan stok
 
 import logging
 from typing import Optional, List
-from database.connection import DatabaseManager
-from database.models import Product, Stock, StockStatus
+from src.database.connection import DatabaseManager
+from src.database.models import Product, Stock, StockStatus
 
 logger = logging.getLogger(__name__)
 

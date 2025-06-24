@@ -6,8 +6,8 @@ Menangani operasi database untuk world
 import logging
 from datetime import datetime
 from typing import List, Optional
-from database.models.world import World
-from database.manager import DatabaseManager
+from src.database.models.world import World
+from src.database.manager import DatabaseManager
 
 logger = logging.getLogger(__name__)
 

@@ -6,9 +6,9 @@ Service untuk mengelola world operations
 import logging
 from typing import List, Optional, Dict, Any
 from dataclasses import dataclass
-from database.models.world import World
-from database.repositories.world_repository import WorldRepository
-from database.manager import DatabaseManager
+from src.database.models.world import World
+from src.database.repositories.world_repository import WorldRepository
+from src.database.manager import DatabaseManager
 
 logger = logging.getLogger(__name__)
 

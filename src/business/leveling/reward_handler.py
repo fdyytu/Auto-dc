@@ -9,7 +9,7 @@ import discord
 import logging
 from typing import List, Optional
 
-from business.leveling.leveling_service import LevelingService
+from src.business.leveling.leveling_service import LevelingService
 
 logger = logging.getLogger(__name__)
 

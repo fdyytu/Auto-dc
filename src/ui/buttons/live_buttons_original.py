@@ -21,7 +21,7 @@ from datetime import datetime
 from typing import List, Dict, Optional, Union
 from discord.ui import Select, Button, View, Modal, TextInput
 
-from config.constants.bot_constants import (
+from src.config.constants.bot_constants import (
     COLORS,
     MESSAGES,
     BUTTON_IDS,
@@ -34,12 +34,12 @@ from config.constants.bot_constants import (
     CURRENCY_RATES
 )
 
-from utils.base_handler import BaseLockHandler
-from services.cache_service import CacheManager
-from services.product_service import ProductService
-from services.balance_service import BalanceManagerService as BalanceService
-from services.transaction_service import TransactionManager as TransactionService
-from services.admin_service import AdminService
+from src.utils.base_handler import BaseLockHandler
+from src.services.cache_service import CacheManager
+from src.services.product_service import ProductService
+from src.services.balance_service import BalanceManagerService as BalanceService
+from src.services.transaction_service import TransactionManager as TransactionService
+from src.services.admin_service import AdminService
 
 class QuantityModal(Modal):
     def __init__(self, product_code: str, max_quantity: int):

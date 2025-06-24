@@ -13,7 +13,7 @@ from typing import Set, Dict, Optional, List
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler, FileModifiedEvent, FileCreatedEvent, FileDeletedEvent
 
-from core.config import config_manager
+from src.bot.config import config_manager
 
 logger = logging.getLogger(__name__)
 
