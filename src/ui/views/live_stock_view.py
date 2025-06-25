@@ -290,11 +290,14 @@ class LiveStockManager(BaseLockHandler):
             return "Invalid Price"
 
     async def update_stock_display(self) -> bool:
-        """Update tampilan stock dengan tombol yang selalu ada"""
+        """Update stock display dengan proper error handling dan button integration"""
         try:
-            # Check if button manager is healthy before proceeding
-            if self.button_manager and hasattr(self.button_manager, 'is_healthy'):
-                if not self.button_manager.is_healthy():
+            # Tunggu sampai ready
+            await self._ready.wait()
+
+            # Check button manager health sebelum update
+            if self.button_manager:
+                if hasattr(self.button_manager, 'is_healthy') and not self.button_manager.is_healthy():
                     self.logger.warning("⚠️ Button manager tidak sehat, livestock tidak akan ditampilkan")
                     await self._update_status(False, "Button manager tidak sehat")
                     return False
@@ -312,55 +315,94 @@ class LiveStockManager(BaseLockHandler):
             if not self.current_stock_message:
                 self.current_stock_message = await self.find_last_message()
 
-            # Buat view/tombol untuk update
+            # Buat view/tombol untuk update dengan retry mechanism
             view = None
-            button_error = None
-            if self.button_manager:
-                try:
-                    view = self.button_manager.create_view()
-                    self.logger.debug("Tombol berhasil dibuat untuk update stock")
-                except Exception as button_error:
-                    self.logger.error(f"Error membuat tombol: {button_error}", exc_info=True)
-                    # Jika button error, livestock juga tidak ditampilkan
-                    await self._update_status(False, f"Error membuat tombol: {str(button_error)}")
-                    return False
+            max_retries = 3
+            for attempt in range(max_retries):
+                if self.button_manager:
+                    try:
+                        view = self.button_manager.create_view()
+                        if view:
+                            self.logger.debug(f"✅ Tombol berhasil dibuat untuk update stock (attempt {attempt + 1})")
+                            break
+                        else:
+                            self.logger.warning(f"⚠️ Button manager mengembalikan None (attempt {attempt + 1})")
+                    except Exception as button_error:
+                        self.logger.error(f"❌ Error membuat tombol (attempt {attempt + 1}): {button_error}")
+                        if attempt == max_retries - 1:
+                            # Jika semua retry gagal, jangan update pesan
+                            error_msg = f"Gagal membuat tombol setelah {max_retries} percobaan: {str(button_error)}"
+                            self.logger.error(error_msg)
+                            await self._update_status(False, error_msg)
+                            return False
+                        # Wait sebentar sebelum retry
+                        await asyncio.sleep(1)
+                else:
+                    self.logger.warning("⚠️ Button manager tidak tersedia")
+                    break
+
+            # Validasi: Jika button manager ada tapi view tidak berhasil dibuat, jangan lanjutkan
+            if self.button_manager and not view:
+                error_msg = "Button manager tersedia tapi gagal membuat view"
+                self.logger.error(error_msg)
+                await self._update_status(False, error_msg)
+                return False
 
             if not self.current_stock_message:
                 # Buat pesan baru jika tidak ada yang ditemukan
-                self.logger.info("Membuat pesan live stock baru dengan tombol")
-                self.current_stock_message = await channel.send(embed=embed, view=view)
                 if view:
+                    self.logger.info("📝 Membuat pesan live stock baru dengan tombol")
+                    self.current_stock_message = await channel.send(embed=embed, view=view)
                     self.logger.info("✅ Pesan baru berhasil dibuat dengan tombol")
                     await self._update_status(True)
                 else:
-                    self.logger.warning("⚠️ Pesan baru dibuat tanpa tombol")
-                    await self._update_status(False, "Pesan dibuat tanpa tombol")
+                    # Jika tidak ada button manager, buat pesan tanpa tombol
+                    self.logger.info("📝 Membuat pesan live stock baru tanpa tombol (button manager tidak tersedia)")
+                    self.current_stock_message = await channel.send(embed=embed)
+                    self.logger.info("✅ Pesan baru berhasil dibuat tanpa tombol")
+                    await self._update_status(True)
                 return True
 
             try:
-                # Update pesan yang ada dengan embed DAN view
+                # Update pesan yang ada dengan embed DAN view (jika ada)
                 if view:
                     await self.current_stock_message.edit(embed=embed, view=view)
                     self.logger.debug("✅ Pesan diupdate dengan embed dan tombol")
                     await self._update_status(True)
                 else:
-                    await self.current_stock_message.edit(embed=embed)
-                    self.logger.warning("⚠️ Pesan diupdate hanya dengan embed (tanpa tombol)")
-                    await self._update_status(False, "Pesan diupdate tanpa tombol")
+                    # Hanya update jika memang tidak ada button manager
+                    if not self.button_manager:
+                        await self.current_stock_message.edit(embed=embed)
+                        self.logger.debug("✅ Pesan diupdate dengan embed saja (button manager tidak tersedia)")
+                        await self._update_status(True)
+                    else:
+                        # Jika ada button manager tapi view None, ini error
+                        error_msg = "Button manager tersedia tapi view None, tidak akan update pesan"
+                        self.logger.error(error_msg)
+                        await self._update_status(False, error_msg)
+                        return False
                 return True
 
             except discord.NotFound:
                 self.logger.warning(MESSAGES.WARNING['MESSAGE_NOT_FOUND'])
                 self.current_stock_message = None
                 # Buat pesan baru karena pesan lama tidak ditemukan
-                self.logger.info("Membuat pesan baru karena pesan lama tidak ditemukan")
-                self.current_stock_message = await channel.send(embed=embed, view=view)
                 if view:
+                    self.logger.info("📝 Membuat pesan baru karena pesan lama tidak ditemukan (dengan tombol)")
+                    self.current_stock_message = await channel.send(embed=embed, view=view)
                     self.logger.info("✅ Pesan pengganti berhasil dibuat dengan tombol")
                     await self._update_status(True)
                 else:
-                    self.logger.warning("⚠️ Pesan pengganti dibuat tanpa tombol")
-                    await self._update_status(False, "Pesan pengganti dibuat tanpa tombol")
+                    if not self.button_manager:
+                        self.logger.info("📝 Membuat pesan baru karena pesan lama tidak ditemukan (tanpa tombol)")
+                        self.current_stock_message = await channel.send(embed=embed)
+                        self.logger.info("✅ Pesan pengganti berhasil dibuat tanpa tombol")
+                        await self._update_status(True)
+                    else:
+                        error_msg = "Pesan lama tidak ditemukan dan gagal membuat tombol untuk pesan baru"
+                        self.logger.error(error_msg)
+                        await self._update_status(False, error_msg)
+                        return False
                 return True
 
         except Exception as e:
