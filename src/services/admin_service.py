@@ -77,17 +77,21 @@ class AdminService(BaseLockHandler):
             # You can extend this to check roles, database, etc.
             if permission == "admin":
                 # Check if user has admin role or is admin ID
-                admin_id = self.bot.config.get('admin_id')
-                if admin_id:
-                    # Convert to int if it's string
-                    admin_id = int(admin_id) if isinstance(admin_id, str) else admin_id
-                    is_admin = user_id == admin_id
-                    self.logger.info(f"Admin check: user_id={user_id}, admin_id={admin_id}, is_admin={is_admin}")
-                    return is_admin
-                
-                # Fallback to admin_users list if admin_id not found
-                admin_users = self.bot.config.get('admin_users', [])
-                return user_id in admin_users
+                if hasattr(self.bot, 'config') and self.bot.config:
+                    admin_id = self.bot.config.get('admin_id')
+                    if admin_id:
+                        # Convert to int if it's string
+                        admin_id = int(admin_id) if isinstance(admin_id, str) else admin_id
+                        is_admin = user_id == admin_id
+                        self.logger.info(f"Admin check: user_id={user_id}, admin_id={admin_id}, is_admin={is_admin}")
+                        return is_admin
+                    
+                    # Fallback to admin_users list if admin_id not found
+                    admin_users = self.bot.config.get('admin_users', [])
+                    return user_id in admin_users
+                else:
+                    self.logger.warning("Bot config tidak tersedia untuk pengecekan admin")
+                    return False
             return False
         except Exception as e:
             self.logger.error(f"Error checking permission for user {user_id}: {e}")
