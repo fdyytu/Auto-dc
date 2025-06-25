@@ -59,9 +59,12 @@ class CentralizedLoggingManager:
             file_handler.setFormatter(formatter)
             file_handler.setLevel(level)
             
-            # Console handler
+            # Console handler dengan format yang lebih detail untuk error
             console_handler = logging.StreamHandler(sys.stdout)
-            console_handler.setFormatter(formatter)
+            console_formatter = logging.Formatter(
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            )
+            console_handler.setFormatter(console_formatter)
             console_handler.setLevel(level)
             
             # Setup root logger
@@ -72,6 +75,20 @@ class CentralizedLoggingManager:
             # Disable propagation untuk logger khusus yang mungkin membuat duplikasi
             discord_logger = logging.getLogger('discord')
             discord_logger.propagate = True  # Biarkan propagate ke root logger
+            
+            # Setup error handler khusus untuk menampilkan error dengan detail
+            error_handler = logging.StreamHandler(sys.stderr)
+            error_formatter = logging.Formatter(
+                "🔴 ERROR - %(asctime)s - %(name)s - %(levelname)s\n"
+                "📍 %(pathname)s:%(lineno)d in %(funcName)s()\n"
+                "💬 %(message)s\n"
+                "{'='*50}"
+            )
+            error_handler.setFormatter(error_formatter)
+            error_handler.setLevel(logging.ERROR)
+            
+            # Tambahkan error handler ke root logger
+            root_logger.addHandler(error_handler)
             
             self._setup_done = True
             logging.info("Sistem logging terpusat berhasil diinisialisasi")

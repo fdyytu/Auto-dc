@@ -8,6 +8,7 @@ import discord
 from discord.ext import commands
 from typing import Dict, List
 from datetime import datetime
+import logging
 
 from src.config.constants.bot_constants import COLORS
 from src.services.admin_service import AdminService
@@ -156,13 +157,20 @@ class HelpManager(commands.Cog):
     @commands.command(name="adminhelp")
     async def admin_help(self, ctx):
         """Show admin commands"""
+        # Log admin help command usage
+        logger = logging.getLogger("HelpManager")
+        logger.info(f"Admin help command used by {ctx.author} (ID: {ctx.author.id}) in {ctx.guild.name if ctx.guild else 'DM'}")
+        
         if not await self.admin_service.check_permission(ctx.author.id, Permissions.ADMIN):
+            logger.warning(f"Access denied for admin help command: {ctx.author} (ID: {ctx.author.id})")
             embed = discord.Embed(
                 title="❌ Access Denied",
                 description="You don't have permission to use admin commands.",
                 color=COLORS.ERROR
             )
             return await ctx.send(embed=embed)
+        
+        logger.info(f"Admin help command access granted to {ctx.author} (ID: {ctx.author.id})")
 
         embed = discord.Embed(
             title="🛠️ Admin Commands",
