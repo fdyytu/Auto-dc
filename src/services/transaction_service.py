@@ -146,11 +146,26 @@ class TransactionManager(BaseLockHandler):
             self.bot = bot
             self.logger = logging.getLogger("TransactionManager")
             self.cache_manager = CacheManager()
-            self.product_manager = ProductService(bot.db_manager)
-            self.balance_manager = BalanceManagerService(bot)
+            # Lazy initialization untuk services
+            self._product_manager = None
+            self._balance_manager = None
             self.callback_manager = TransactionCallbackManager()
             self.setup_default_callbacks()
             self.initialized = True
+    
+    @property
+    def product_manager(self):
+        """Lazy initialization untuk product manager"""
+        if self._product_manager is None:
+            self._product_manager = ProductService(self.bot.db_manager)
+        return self._product_manager
+    
+    @property
+    def balance_manager(self):
+        """Lazy initialization untuk balance manager"""
+        if self._balance_manager is None:
+            self._balance_manager = BalanceManagerService(self.bot)
+        return self._balance_manager
     
     def setup_default_callbacks(self):
         """Setup default callbacks untuk notifikasi"""
