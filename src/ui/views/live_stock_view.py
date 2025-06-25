@@ -243,7 +243,7 @@ class LiveStockManager(BaseLockHandler):
             return "Invalid Price"
 
     async def update_stock_display(self) -> bool:
-        """Update tampilan stock tanpa mengirim pesan baru"""
+        """Update tampilan stock dengan tombol yang selalu ada"""
         try:
             channel = self.bot.get_channel(self.stock_channel_id)
             if not channel:
@@ -256,27 +256,49 @@ class LiveStockManager(BaseLockHandler):
             if not self.current_stock_message:
                 self.current_stock_message = await self.find_last_message()
 
+            # Buat view/tombol untuk update
+            view = None
+            if self.button_manager:
+                try:
+                    view = self.button_manager.create_view()
+                    self.logger.debug("Tombol berhasil dibuat untuk update stock")
+                except Exception as button_error:
+                    self.logger.error(f"Error membuat tombol: {button_error}", exc_info=True)
+
             if not self.current_stock_message:
                 # Buat pesan baru jika tidak ada yang ditemukan
-                view = self.button_manager.create_view() if self.button_manager else None
+                self.logger.info("Membuat pesan live stock baru dengan tombol")
                 self.current_stock_message = await channel.send(embed=embed, view=view)
+                if view:
+                    self.logger.info("✅ Pesan baru berhasil dibuat dengan tombol")
+                else:
+                    self.logger.warning("⚠️ Pesan baru dibuat tanpa tombol")
                 return True
 
             try:
-                # Update pesan yang ada
-                await self.current_stock_message.edit(embed=embed)
+                # Update pesan yang ada dengan embed DAN view
+                if view:
+                    await self.current_stock_message.edit(embed=embed, view=view)
+                    self.logger.debug("✅ Pesan diupdate dengan embed dan tombol")
+                else:
+                    await self.current_stock_message.edit(embed=embed)
+                    self.logger.warning("⚠️ Pesan diupdate hanya dengan embed (tanpa tombol)")
                 return True
 
             except discord.NotFound:
                 self.logger.warning(MESSAGES.WARNING['MESSAGE_NOT_FOUND'])
                 self.current_stock_message = None
                 # Buat pesan baru karena pesan lama tidak ditemukan
-                view = self.button_manager.create_view() if self.button_manager else None
+                self.logger.info("Membuat pesan baru karena pesan lama tidak ditemukan")
                 self.current_stock_message = await channel.send(embed=embed, view=view)
+                if view:
+                    self.logger.info("✅ Pesan pengganti berhasil dibuat dengan tombol")
+                else:
+                    self.logger.warning("⚠️ Pesan pengganti dibuat tanpa tombol")
                 return True
 
         except Exception as e:
-            self.logger.error(f"Error updating stock display: {e}")
+            self.logger.error(f"Error updating stock display: {e}", exc_info=True)
             return False
 
     async def cleanup(self):

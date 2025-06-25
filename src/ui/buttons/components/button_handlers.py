@@ -128,8 +128,11 @@ class BaseButtonHandler:
         """Handle interaction with proper locking and statistics"""
         interaction_id = str(interaction.id)
         
+        self.logger.info(f"[BUTTON_HANDLER] User {interaction.user.id} ({interaction.user.name}) mengklik tombol {button_name}")
+        
         # Acquire lock
         if not await self.lock_manager.acquire_lock(interaction_id):
+            self.logger.warning(f"[BUTTON_HANDLER] User {interaction.user.id} mencoba mengklik {button_name} saat masih ada proses yang berjalan")
             await interaction.response.send_message(
                 "⏳ Mohon tunggu, sedang memproses permintaan sebelumnya...", 
                 ephemeral=True
@@ -137,19 +140,35 @@ class BaseButtonHandler:
             return
         
         try:
+            self.logger.debug(f"[BUTTON_HANDLER] Memproses {button_name} untuk user {interaction.user.id}")
             await handler_func(interaction)
             self.stats.update_stats(button_name, success=True)
+            self.logger.info(f"[BUTTON_HANDLER] ✅ {button_name} berhasil diproses untuk user {interaction.user.id}")
         except Exception as e:
-            self.logger.error(f"Error in {button_name} handler: {e}")
+            self.logger.error(f"[BUTTON_HANDLER] ❌ Error dalam {button_name} button handler untuk user {interaction.user.id}: {e}", exc_info=True)
             self.stats.update_stats(button_name, success=False)
             
+            # Detailed error logging
+            error_details = {
+                'user_id': interaction.user.id,
+                'username': interaction.user.name,
+                'button': button_name,
+                'error_type': type(e).__name__,
+                'error_message': str(e),
+                'guild_id': interaction.guild_id if interaction.guild else None,
+                'channel_id': interaction.channel_id if interaction.channel else None
+            }
+            self.logger.error(f"[BUTTON_ERROR_DETAILS] {error_details}")
+            
+            error_message = f"❌ Terjadi kesalahan saat memproses permintaan {button_name}.\nError: {type(e).__name__}"
+            
             if not interaction.response.is_done():
-                await interaction.response.send_message(
-                    "❌ Terjadi kesalahan saat memproses permintaan.", 
-                    ephemeral=True
-                )
+                await interaction.response.send_message(error_message, ephemeral=True)
+            else:
+                await interaction.followup.send(error_message, ephemeral=True)
         finally:
             self.lock_manager.release_lock(interaction_id)
+            self.logger.debug(f"[BUTTON_HANDLER] Lock released untuk {interaction_id}")
 
 class RegisterButtonHandler(BaseButtonHandler):
     """Handler untuk button registrasi"""
