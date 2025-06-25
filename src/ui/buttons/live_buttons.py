@@ -357,7 +357,13 @@ class LiveButtonManager(BaseLockHandler):
             }
             
             self.initialized = True
-            self.logger.info("LiveButtonManager initialized (refactored)")
+            self.logger.info(f"LiveButtonManager initialized (refactored) - Channel ID: {self.stock_channel_id}")
+            
+            # Validasi channel ID
+            if self.stock_channel_id == 0:
+                self.logger.error("❌ Stock channel ID tidak dikonfigurasi dengan benar")
+            else:
+                self.logger.info(f"✅ Stock channel ID dikonfigurasi: {self.stock_channel_id}")
 
     def create_view(self):
         """Create shop view with buttons"""
@@ -427,12 +433,35 @@ class LiveButtonManager(BaseLockHandler):
                     await self._update_status(False, "Livestock tidak sehat")
                     return None
 
-            channel = self.bot.get_channel(self.stock_channel_id)
-            if not channel:
-                error_msg = f"Channel stock dengan ID {self.stock_channel_id} tidak ditemukan"
-                self.logger.error(f"[MESSAGE_MANAGEMENT] {error_msg}")
-                await self._update_status(False, error_msg)
-                return None
+            # Pastikan bot sudah ready sebelum mengakses channel
+            if not self.bot.is_ready():
+                self.logger.warning("[MESSAGE_MANAGEMENT] Bot belum ready, menunggu...")
+                try:
+                    await asyncio.wait_for(self.bot.wait_until_ready(), timeout=10.0)
+                    self.logger.info("[MESSAGE_MANAGEMENT] ✅ Bot sudah ready")
+                except asyncio.TimeoutError:
+                    error_msg = "Timeout menunggu bot ready"
+                    self.logger.error(f"[MESSAGE_MANAGEMENT] {error_msg}")
+                    await self._update_status(False, error_msg)
+                    return None
+
+            # Retry mechanism untuk mendapatkan channel
+            channel = None
+            max_retries = 3
+            for attempt in range(max_retries):
+                channel = self.bot.get_channel(self.stock_channel_id)
+                if channel:
+                    self.logger.info(f"[MESSAGE_MANAGEMENT] ✅ Channel stock ditemukan: {channel.name} (ID: {channel.id})")
+                    break
+                
+                if attempt < max_retries - 1:
+                    self.logger.warning(f"[MESSAGE_MANAGEMENT] Channel tidak ditemukan, retry {attempt + 1}/{max_retries}")
+                    await asyncio.sleep(1)
+                else:
+                    error_msg = f"Channel stock dengan ID {self.stock_channel_id} tidak ditemukan setelah {max_retries} percobaan"
+                    self.logger.error(f"[MESSAGE_MANAGEMENT] {error_msg}")
+                    await self._update_status(False, error_msg)
+                    return None
 
             # First check if stock manager has a valid message
             if self.stock_manager and self.stock_manager.current_stock_message:
@@ -580,6 +609,15 @@ class LiveButtonsCog(commands.Cog):
         try:
             self.logger.info("LiveButtonsCog loading...")
 
+            # Tunggu bot ready terlebih dahulu
+            self.logger.info("Menunggu bot ready...")
+            try:
+                await asyncio.wait_for(self.bot.wait_until_ready(), timeout=15.0)
+                self.logger.info("✅ Bot sudah ready")
+            except asyncio.TimeoutError:
+                self.logger.error("❌ Timeout menunggu bot ready")
+                raise RuntimeError("Bot tidak ready dalam waktu yang ditentukan")
+
             # Initialize dependencies with timeout
             try:
                 success = await asyncio.wait_for(
@@ -667,6 +705,14 @@ async def setup(bot):
         if not hasattr(bot, COG_LOADED['LIVE_BUTTONS']):
             logger.info("Setting up LiveButtonsCog (refactored)...")
             
+            # Validasi konfigurasi channel stock
+            stock_channel_id = int(bot.config.get('id_live_stock', 0))
+            if stock_channel_id == 0:
+                logger.error("❌ Live stock channel ID tidak dikonfigurasi dalam config.json")
+                raise RuntimeError("Live stock channel tidak dikonfigurasi")
+            
+            logger.info(f"✅ Live stock channel ID dari config: {stock_channel_id}")
+            
             # Tunggu LiveStockCog tersedia
             stock_cog = bot.get_cog('LiveStockCog')
             if not stock_cog:
@@ -680,7 +726,7 @@ async def setup(bot):
             try:
                 await asyncio.wait_for(
                     cog._ready.wait(),
-                    timeout=25.0  # Kurangi timeout menjadi 25 detik
+                    timeout=30.0  # Tambah timeout menjadi 30 detik untuk memberi waktu lebih
                 )
                 logger.info("✅ LiveButtonsCog initialization completed (refactored)")
             except asyncio.TimeoutError:
