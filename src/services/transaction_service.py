@@ -23,7 +23,7 @@ from discord.ext import commands
 from src.database.models.balance import Balance
 from src.database.models.transaction import TransactionType, TransactionStatus
 from src.database.models.product import Product, Stock, StockStatus
-from database import get_connection
+from src.database.connection import get_connection
 from src.utils.base_handler import BaseLockHandler
 from src.services.cache_service import CacheManager
 from src.services.product_service import ProductService

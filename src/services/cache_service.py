@@ -11,7 +11,7 @@ import json
 from typing import Optional, Any, Dict
 from datetime import datetime, timedelta
 from sqlite3 import Connection, Error as SQLiteError
-from database import get_connection
+from src.database.connection import get_connection
 import asyncio
 from functools import wraps
 

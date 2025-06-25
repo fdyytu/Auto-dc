@@ -27,7 +27,7 @@ from src.config.constants.bot_constants import (
     CACHE_TIMEOUT,
     COLORS
 )
-from database import get_connection
+from src.database.connection import get_connection
 from src.utils.base_handler import BaseLockHandler
 from src.services.cache_service import CacheManager
 

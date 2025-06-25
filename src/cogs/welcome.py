@@ -6,7 +6,7 @@ import aiohttp
 from datetime import datetime
 from typing import Optional
 from .utils import Embed, event_dispatcher
-from database import get_connection
+from src.database.connection import get_connection
 import sqlite3
 import asyncio
 from asyncio import Lock

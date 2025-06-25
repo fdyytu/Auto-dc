@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 import json
 import re
-from database import get_connection
+from src.database.connection import get_connection
 from src.database.models.balance import Balance
 from src.database.models.transaction import TransactionType
 from src.services.base_service import ServiceResponse

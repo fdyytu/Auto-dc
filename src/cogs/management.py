@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict
 from .utils import Embed, event_dispatcher
-from database import get_connection
+from src.database.connection import get_connection
 import sqlite3
 import logging
 

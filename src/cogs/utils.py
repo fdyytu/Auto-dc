@@ -9,7 +9,7 @@ from pathlib import Path
 
 # Add parent directory to path to import database
 sys.path.append(str(Path(__file__).parent.parent))
-from database import get_connection
+from src.database.connection import get_connection
 
 # Configure logger
 logger = logging.getLogger(__name__)
