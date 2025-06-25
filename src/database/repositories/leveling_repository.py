@@ -10,7 +10,7 @@ import logging
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 
-from database import get_connection
+from src.database.connection import get_connection
 
 logger = logging.getLogger(__name__)
 

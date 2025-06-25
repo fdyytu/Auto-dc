@@ -6,7 +6,7 @@ import sqlite3
 from datetime import datetime, timedelta
 from typing import Optional, Dict, List
 from .utils import Embed, event_dispatcher
-from database import get_connection
+from src.database.connection import get_connection
 import logging
 
 logger = logging.getLogger(__name__)

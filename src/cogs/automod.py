@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import json
 import asyncio
 from .utils import Embed, Permissions, event_dispatcher
-from database import get_connection
+from src.database.connection import get_connection
 import sqlite3
 from asyncio import Lock
 import os

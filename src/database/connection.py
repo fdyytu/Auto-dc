@@ -14,6 +14,27 @@ from contextlib import asynccontextmanager
 
 logger = logging.getLogger(__name__)
 
+# Global database manager instance
+_db_manager = None
+
+def get_connection():
+    """Get synchronous database connection for compatibility"""
+    try:
+        conn = sqlite3.connect("shop.db", timeout=5)
+        conn.row_factory = sqlite3.Row
+        
+        # Konfigurasi database
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA busy_timeout = 5000")
+        cursor.execute("PRAGMA journal_mode = WAL")
+        cursor.execute("PRAGMA synchronous = NORMAL")
+        cursor.execute("PRAGMA foreign_keys = ON")
+        
+        return conn
+    except sqlite3.Error as e:
+        logger.error(f"Error getting database connection: {e}")
+        raise
+
 class DatabaseManager:
     """Manager untuk koneksi dan operasi database"""
     
