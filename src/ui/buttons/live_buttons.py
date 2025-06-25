@@ -396,22 +396,18 @@ class LiveButtonManager(BaseLockHandler):
             self.button_status['error_count'] = 0
             self.button_status['last_error'] = None
             
-        # Notify livestock manager about status change
-        if self.stock_manager and hasattr(self.stock_manager, 'on_button_status_change'):
+        # Notify livestock manager if available (tanpa circular call)
+        if self.stock_manager and hasattr(self.stock_manager, 'livestock_status'):
             try:
-                await self.stock_manager.on_button_status_change(is_healthy, error)
+                # Update status langsung tanpa memanggil function yang bisa circular
+                self.stock_manager.livestock_status['button_error'] = error
+                self.stock_manager.livestock_status['button_healthy'] = is_healthy
+                self.logger.debug(f"✅ Status synced to livestock manager")
             except Exception as e:
-                self.logger.error(f"Error notifying livestock manager: {e}")
+                self.logger.error(f"Error syncing to livestock manager: {e}")
 
-    async def on_livestock_status_change(self, is_healthy: bool, error: str = None):
-        """Handle livestock status change notification"""
-        if not is_healthy:
-            self.logger.warning(f"⚠️ Livestock tidak sehat: {error}")
-            # Jika livestock error, button juga tidak ditampilkan
-            await self._update_status(False, f"Livestock error: {error}")
-        else:
-            self.logger.info("✅ Livestock kembali sehat")
-            await self._update_status(True)
+    # Removed on_livestock_status_change to prevent circular calls
+    # Status sync now handled directly in _update_status
 
     async def set_stock_manager(self, stock_manager):
         """Set stock manager untuk integrasi"""
@@ -539,12 +535,12 @@ class LiveButtonsCog(commands.Cog):
         self.logger.info("LiveButtonsCog initialized (refactored)")
 
     async def initialize_dependencies(self) -> bool:
-        """Initialize dependencies dengan timeout"""
+        """Initialize dependencies dengan timeout yang lebih pendek"""
         try:
             self.logger.info("Initializing dependencies...")
             
-            # Wait for LiveStockCog dengan strategi yang lebih fleksibel
-            max_attempts = 60  # Increase timeout
+            # Wait for LiveStockCog dengan timeout yang lebih pendek
+            max_attempts = 15  # Kurangi timeout menjadi 15 detik
             for attempt in range(max_attempts):
                 # Cari LiveStockCog dengan berbagai cara
                 self.stock_manager = self.bot.get_cog('LiveStockCog')
@@ -561,22 +557,22 @@ class LiveButtonsCog(commands.Cog):
                 
                 if self.stock_manager and hasattr(self.stock_manager, 'stock_manager'):
                     await self.button_manager.set_stock_manager(self.stock_manager.stock_manager)
-                    self.logger.info(f"LiveStockCog found and connected: {type(self.stock_manager).__name__}")
+                    self.logger.info(f"✅ LiveStockCog found and connected: {type(self.stock_manager).__name__}")
                     break
                 
-                if attempt % 10 == 0:  # Log setiap 10 detik
+                if attempt % 5 == 0:  # Log setiap 5 detik
                     self.logger.info(f"Still waiting for LiveStockCog... attempt {attempt + 1}/{max_attempts}")
                 await asyncio.sleep(1)
             else:
                 # Jika tidak ditemukan, tetap lanjutkan tanpa stock manager
-                self.logger.warning("LiveStockCog not found after waiting, continuing without stock integration")
+                self.logger.warning("⚠️ LiveStockCog not found after waiting, continuing without stock integration")
                 return True  # Return True agar tidak gagal
 
-            self.logger.info("Dependencies initialized successfully")
+            self.logger.info("✅ Dependencies initialized successfully")
             return True
 
         except Exception as e:
-            self.logger.error(f"Error initializing dependencies: {e}", exc_info=True)
+            self.logger.error(f"❌ Error initializing dependencies: {e}", exc_info=True)
             return True  # Return True agar tidak gagal, bisa berjalan tanpa stock integration
 
     async def cog_load(self):
@@ -588,11 +584,11 @@ class LiveButtonsCog(commands.Cog):
             try:
                 success = await asyncio.wait_for(
                     self.initialize_dependencies(),
-                    timeout=70.0  # Increase timeout
+                    timeout=20.0  # Kurangi timeout menjadi 20 detik
                 )
-                self.logger.info("Dependencies initialization completed")
+                self.logger.info("✅ Dependencies initialization completed")
             except asyncio.TimeoutError:
-                self.logger.warning("Initialization timed out, but continuing...")
+                self.logger.warning("⚠️ Initialization timed out, but continuing...")
                 # Don't raise, allow to continue without full integration
 
             # Start background task
@@ -684,11 +680,11 @@ async def setup(bot):
             try:
                 await asyncio.wait_for(
                     cog._ready.wait(),
-                    timeout=45.0
+                    timeout=25.0  # Kurangi timeout menjadi 25 detik
                 )
-                logger.info("LiveButtonsCog initialization completed (refactored)")
+                logger.info("✅ LiveButtonsCog initialization completed (refactored)")
             except asyncio.TimeoutError:
-                logger.error("LiveButtonsCog initialization timed out")
+                logger.error("❌ LiveButtonsCog initialization timed out")
                 await bot.remove_cog('LiveButtonsCog')
                 raise RuntimeError("Initialization timed out")
 

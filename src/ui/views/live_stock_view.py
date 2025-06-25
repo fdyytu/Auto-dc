@@ -138,24 +138,20 @@ class LiveStockManager(BaseLockHandler):
             self.livestock_status['error_count'] = 0
             self.livestock_status['last_error'] = None
             
-        # Notify button manager about status change
-        if self.button_manager and hasattr(self.button_manager, 'on_livestock_status_change'):
+        # Notify button manager about status change (tanpa circular call)
+        if self.button_manager and hasattr(self.button_manager, 'button_status'):
             try:
-                await self.button_manager.on_livestock_status_change(is_healthy, error)
+                # Update status langsung tanpa memanggil function yang bisa circular
+                self.button_manager.button_status['livestock_error'] = error
+                self.button_manager.button_status['livestock_healthy'] = is_healthy
+                self.logger.debug(f"✅ Status synced to button manager")
             except Exception as e:
-                self.logger.error(f"Error notifying button manager: {e}")
+                self.logger.error(f"Error syncing to button manager: {e}")
         elif not self.button_manager:
             self.logger.debug("Button manager tidak tersedia untuk notifikasi status")
 
-    async def on_button_status_change(self, is_healthy: bool, error: str = None):
-        """Handle button status change notification"""
-        if not is_healthy:
-            self.logger.warning(f"⚠️ Button tidak sehat: {error}")
-            # Jika button error, livestock juga tidak ditampilkan
-            await self._update_status(False, f"Button error: {error}")
-        else:
-            self.logger.info("✅ Button kembali sehat")
-            await self._update_status(True)
+    # Removed on_button_status_change to prevent circular calls
+    # Status sync now handled directly in _update_status
 
     async def create_stock_embed(self) -> discord.Embed:
         """Buat embed untuk display stock dengan tema modern"""

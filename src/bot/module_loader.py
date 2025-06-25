@@ -140,17 +140,36 @@ class ModuleLoader:
     
     def _discover_cogs(self, cogs_path: Path) -> List[str]:
         """
-        Auto-discovery semua file cogs yang valid
+        Auto-discovery semua file cogs yang valid dengan urutan prioritas
         Returns: List of module names
         """
         cog_modules = []
         
+        # Urutan prioritas loading cogs (livestock dulu, baru buttons)
+        priority_order = [
+            'live_stock.py',    # Harus dimuat pertama
+            'live_buttons.py',  # Dimuat setelah live_stock
+        ]
+        
+        # Load priority cogs first
+        for priority_file in priority_order:
+            py_file = cogs_path / priority_file
+            if py_file.exists() and self._validate_cog_file(py_file):
+                module_name = f"src.cogs.{py_file.stem}"
+                cog_modules.append(module_name)
+                logger.info(f"🔍 Priority cog ditemukan: {module_name}")
+        
+        # Load remaining cogs
         for py_file in cogs_path.glob("*.py"):
             if py_file.name == "__init__.py":
                 continue
             
             # Skip file backup atau temporary
             if py_file.name.startswith('.') or py_file.name.endswith('.bak'):
+                continue
+            
+            # Skip priority files yang sudah dimuat
+            if py_file.name in priority_order:
                 continue
             
             # Convert ke module name
@@ -163,7 +182,7 @@ class ModuleLoader:
             else:
                 logger.warning(f"⚠️  File {py_file.name} tidak memiliki setup function yang valid")
         
-        return sorted(cog_modules)  # Sort untuk konsistensi
+        return cog_modules  # Tidak di-sort agar urutan prioritas tetap terjaga
     
     def _validate_cog_file(self, file_path: Path) -> bool:
         """
