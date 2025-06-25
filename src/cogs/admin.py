@@ -564,12 +564,15 @@ class AdminCog(commands.Cog):
                     # Kirim pesan restart
                     restart_embed = discord.Embed(
                         title="🔄 Restarting...",
-                        description="Bot sedang di-restart. Mohon tunggu beberapa saat...",
+                        description="Bot sedang di-restart. Mohon tunggu beberapa saat...\n🧹 Membersihkan cache dan state...",
                         color=0x00ff00
                     )
                     await ctx.send(embed=restart_embed)
                     
                     logger.info(f"Bot restart diminta oleh {ctx.author} ({ctx.author.id})")
+                    
+                    # Cleanup cache dan state sebelum restart
+                    await self._cleanup_before_restart()
                     
                     # Cleanup dan restart
                     await self.bot.close()
@@ -600,6 +603,73 @@ class AdminCog(commands.Cog):
         except Exception as e:
             logger.error(f"Error restart command: {e}")
             await ctx.send(embed=message_formatter.error_embed("Terjadi error saat restart"))
+
+    async def _cleanup_before_restart(self):
+        """Membersihkan cache dan state sebelum restart"""
+        try:
+            logger.info("🧹 Memulai pembersihan sebelum restart...")
+            
+            # 1. Bersihkan cache system
+            try:
+                from src.services.cache_service import CacheManager
+                cache_manager = CacheManager()
+                await cache_manager.clear()
+                logger.info("✅ Cache system dibersihkan")
+            except Exception as e:
+                logger.error(f"❌ Error membersihkan cache: {e}")
+            
+            # 2. Bersihkan state livestock manager
+            try:
+                livestock_cog = self.bot.get_cog('LiveStockCog')
+                if livestock_cog and hasattr(livestock_cog, 'stock_manager'):
+                    livestock_cog.stock_manager.current_stock_message = None
+                    if hasattr(livestock_cog.stock_manager, 'button_manager'):
+                        livestock_cog.stock_manager.button_manager = None
+                    logger.info("✅ Livestock state dibersihkan")
+            except Exception as e:
+                logger.error(f"❌ Error membersihkan livestock state: {e}")
+            
+            # 3. Bersihkan state button manager
+            try:
+                button_cog = self.bot.get_cog('LiveButtonsCog')
+                if button_cog and hasattr(button_cog, 'button_manager'):
+                    button_cog.button_manager.current_message = None
+                    if hasattr(button_cog.button_manager, 'stock_manager'):
+                        button_cog.button_manager.stock_manager = None
+                    logger.info("✅ Button state dibersihkan")
+            except Exception as e:
+                logger.error(f"❌ Error membersihkan button state: {e}")
+            
+            # 4. Stop semua background tasks
+            try:
+                # Stop livestock update task
+                if livestock_cog and hasattr(livestock_cog, 'update_stock_task'):
+                    if livestock_cog.update_stock_task.is_running():
+                        livestock_cog.update_stock_task.cancel()
+                        logger.info("✅ Livestock update task dihentikan")
+                
+                # Stop button check task
+                if button_cog and hasattr(button_cog, 'check_display'):
+                    if button_cog.check_display.is_running():
+                        button_cog.check_display.cancel()
+                        logger.info("✅ Button check task dihentikan")
+                        
+            except Exception as e:
+                logger.error(f"❌ Error menghentikan background tasks: {e}")
+            
+            # 5. Bersihkan cache dari ext.cache_manager jika ada
+            try:
+                from src.ext.cache_manager import CacheManager as ExtCacheManager
+                ext_cache = ExtCacheManager()
+                await ext_cache.clear()
+                logger.info("✅ Extension cache dibersihkan")
+            except Exception as e:
+                logger.error(f"❌ Error membersihkan extension cache: {e}")
+            
+            logger.info("🎉 Pembersihan sebelum restart selesai")
+            
+        except Exception as e:
+            logger.error(f"❌ Error dalam pembersihan sebelum restart: {e}")
 
 async def setup(bot):
     """Setup admin cog"""
