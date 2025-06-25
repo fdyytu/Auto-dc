@@ -50,7 +50,7 @@ class LiveStockManager(BaseLockHandler):
             self.product_service = ProductService(bot.db_manager)
             self.balance_service = BalanceService(bot.db_manager)
             self.trx_manager = TransactionService(bot.db_manager)
-            self.admin_service = AdminService(bot.db_manager)
+            self.admin_service = AdminService(bot)
 
             # Channel configuration
             self.stock_channel_id = int(self.bot.config.get('id_live_stock', 0))
@@ -311,12 +311,12 @@ class LiveStockManager(BaseLockHandler):
             # Tunggu sampai ready
             await self._ready.wait()
 
-            # Check button manager health sebelum update
+            # Check button manager health sebelum update (non-blocking)
             if self.button_manager:
                 if hasattr(self.button_manager, 'is_healthy') and not self.button_manager.is_healthy():
-                    self.logger.warning("⚠️ Button manager tidak sehat, livestock tidak akan ditampilkan")
-                    await self._update_status(False, "Button manager tidak sehat")
-                    return False
+                    self.logger.warning("⚠️ Button manager tidak sehat, livestock akan berjalan tanpa tombol")
+                    # Jangan return False, biarkan livestock tetap berjalan tanpa tombol
+                    self.button_manager = None  # Reset button manager agar tidak digunakan
 
             channel = self.bot.get_channel(self.stock_channel_id)
             if not channel:
