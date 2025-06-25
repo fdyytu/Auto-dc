@@ -609,36 +609,73 @@ class LiveButtonsCog(commands.Cog):
         try:
             self.logger.info("LiveButtonsCog loading...")
 
-            # Tunggu bot ready terlebih dahulu
-            self.logger.info("Menunggu bot ready...")
-            try:
-                await asyncio.wait_for(self.bot.wait_until_ready(), timeout=15.0)
-                self.logger.info("✅ Bot sudah ready")
-            except asyncio.TimeoutError:
-                self.logger.error("❌ Timeout menunggu bot ready")
-                raise RuntimeError("Bot tidak ready dalam waktu yang ditentukan")
-
-            # Initialize dependencies with timeout
-            try:
-                success = await asyncio.wait_for(
-                    self.initialize_dependencies(),
-                    timeout=20.0  # Kurangi timeout menjadi 20 detik
-                )
-                self.logger.info("✅ Dependencies initialization completed")
-            except asyncio.TimeoutError:
-                self.logger.warning("⚠️ Initialization timed out, but continuing...")
-                # Don't raise, allow to continue without full integration
-
-            # Start background task
-            self.check_display.start()
+            # Jangan tunggu bot ready di sini, karena bot mungkin belum sepenuhnya ready
+            # Sebagai gantinya, gunakan asyncio.create_task untuk menjalankan initialization secara asynchronous
+            self.logger.info("Memulai initialization secara asynchronous...")
             
-            # Set ready state
+            # Buat task untuk initialization yang akan berjalan di background
+            asyncio.create_task(self._delayed_initialization())
+            
+            # Set ready state langsung agar tidak blocking
             self._ready.set()
             self.logger.info("LiveButtonsCog loaded successfully (refactored)")
 
         except Exception as e:
             self.logger.error(f"Error in cog_load: {e}")
-            raise
+            # Jangan raise error, biarkan cog tetap dimuat
+            self.logger.warning("Continuing with partial initialization...")
+            self._ready.set()
+
+    async def _delayed_initialization(self):
+        """Delayed initialization yang berjalan di background"""
+        try:
+            self.logger.info("Memulai delayed initialization...")
+            
+            # Tunggu bot ready dengan timeout yang lebih lama
+            self.logger.info("Menunggu bot ready...")
+            try:
+                await asyncio.wait_for(self.bot.wait_until_ready(), timeout=60.0)
+                self.logger.info("✅ Bot sudah ready")
+            except asyncio.TimeoutError:
+                self.logger.warning("⚠️ Timeout menunggu bot ready, melanjutkan tanpa full integration")
+                return
+
+            # Tunggu sebentar untuk memastikan semua cogs lain sudah dimuat
+            await asyncio.sleep(5)
+
+            # Initialize dependencies dengan retry mechanism
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    self.logger.info(f"Mencoba initialize dependencies (attempt {attempt + 1}/{max_retries})...")
+                    success = await asyncio.wait_for(
+                        self.initialize_dependencies(),
+                        timeout=30.0
+                    )
+                    if success:
+                        self.logger.info("✅ Dependencies initialization completed")
+                        break
+                except asyncio.TimeoutError:
+                    self.logger.warning(f"⚠️ Initialization attempt {attempt + 1} timed out")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(10)  # Tunggu 10 detik sebelum retry
+                    else:
+                        self.logger.warning("⚠️ All initialization attempts failed, continuing without full integration")
+                except Exception as e:
+                    self.logger.error(f"Error in initialization attempt {attempt + 1}: {e}")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(10)
+                    else:
+                        self.logger.warning("⚠️ All initialization attempts failed, continuing without full integration")
+
+            # Start background task
+            if not self.check_display.is_running():
+                self.check_display.start()
+                self.logger.info("✅ Background task started")
+
+        except Exception as e:
+            self.logger.error(f"Error in delayed initialization: {e}")
+            self.logger.warning("Continuing without full initialization...")
 
     async def cog_unload(self):
         """Cleanup when cog is unloaded"""
@@ -708,12 +745,12 @@ async def setup(bot):
             # Validasi konfigurasi channel stock
             stock_channel_id = int(bot.config.get('id_live_stock', 0))
             if stock_channel_id == 0:
-                logger.error("❌ Live stock channel ID tidak dikonfigurasi dalam config.json")
-                raise RuntimeError("Live stock channel tidak dikonfigurasi")
+                logger.warning("⚠️ Live stock channel ID tidak dikonfigurasi dalam config.json")
+                logger.warning("LiveButtonsCog akan dimuat tanpa stock integration")
+            else:
+                logger.info(f"✅ Live stock channel ID dari config: {stock_channel_id}")
             
-            logger.info(f"✅ Live stock channel ID dari config: {stock_channel_id}")
-            
-            # Tunggu LiveStockCog tersedia
+            # Tunggu LiveStockCog tersedia (optional)
             stock_cog = bot.get_cog('LiveStockCog')
             if not stock_cog:
                 logger.warning("LiveStockCog not found, will wait for it during initialization")
@@ -722,17 +759,9 @@ async def setup(bot):
             await bot.add_cog(cog)
             logger.info("LiveButtonsCog added to bot (refactored)")
 
-            # Wait for initialization with timeout
-            try:
-                await asyncio.wait_for(
-                    cog._ready.wait(),
-                    timeout=30.0  # Tambah timeout menjadi 30 detik untuk memberi waktu lebih
-                )
-                logger.info("✅ LiveButtonsCog initialization completed (refactored)")
-            except asyncio.TimeoutError:
-                logger.error("❌ LiveButtonsCog initialization timed out")
-                await bot.remove_cog('LiveButtonsCog')
-                raise RuntimeError("Initialization timed out")
+            # Jangan tunggu initialization selesai, biarkan berjalan di background
+            # Karena initialization sekarang menggunakan delayed mechanism
+            logger.info("✅ LiveButtonsCog setup completed (initialization running in background)")
 
             setattr(bot, COG_LOADED['LIVE_BUTTONS'], True)
             logger.info("LiveButtons cog loaded successfully (refactored)")
@@ -741,7 +770,8 @@ async def setup(bot):
         logger.error(f"Failed to load LiveButtonsCog: {e}", exc_info=True)
         if hasattr(bot, COG_LOADED['LIVE_BUTTONS']):
             delattr(bot, COG_LOADED['LIVE_BUTTONS'])
-        raise
+        # Jangan raise error, biarkan bot tetap berjalan
+        logger.warning("Continuing without LiveButtonsCog...")
 
 async def teardown(bot):
     """Cleanup when unloading the cog"""
