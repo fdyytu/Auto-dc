@@ -365,13 +365,15 @@ class LiveStockCog(commands.Cog):
             if not channel:
                 self.logger.error(f"Stock channel {self.stock_manager.stock_channel_id} not found")
                 return
+            else:
+                self.logger.info(f"✓ Live stock channel found: {channel.name} (ID: {channel.id})")
             
             # Start background tasks
             await self.start_tasks()
-            self.logger.info("LiveStockCog fully initialized")
+            self.logger.info("LiveStockCog fully initialized and ready")
     
         except Exception as e:
-            self.logger.error(f"Error in delayed setup: {e}")
+            self.logger.error(f"Error in delayed setup: {e}", exc_info=True)
 
     async def cog_unload(self):
         """Cleanup when cog is unloaded"""
@@ -412,6 +414,15 @@ async def setup(bot):
     try:
         if not hasattr(bot, COG_LOADED['LIVE_STOCK']):
             logger.info("Setting up LiveStockCog...")
+            
+            # Validate stock channel exists
+            stock_channel_id = int(bot.config.get('id_live_stock', 0))
+            if stock_channel_id == 0:
+                logger.error("Live stock channel ID not configured in config.json")
+                raise RuntimeError("Live stock channel not configured")
+            
+            logger.info(f"Live stock channel ID from config: {stock_channel_id}")
+            
             cog = LiveStockCog(bot)
             await bot.add_cog(cog)
             logger.info("LiveStockCog added to bot")
@@ -426,7 +437,10 @@ async def setup(bot):
                 raise RuntimeError("Stock manager initialization timeout")
                 
             setattr(bot, COG_LOADED['LIVE_STOCK'], True)
-            logger.info(f'LiveStock cog loaded at {datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")} UTC')
+            logger.info(f'✓ LiveStock cog loaded successfully at {datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")} UTC')
+            return True
+        else:
+            logger.info("LiveStockCog already loaded, skipping...")
             return True
     except Exception as e:
         logger.error(f"Failed to load LiveStock cog: {e}", exc_info=True)

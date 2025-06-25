@@ -71,7 +71,7 @@ class StoreBot(commands.Bot):
             'src.cogs.admin', 'src.cogs.automod', 'src.cogs.help_manager',
             'src.cogs.leveling', 'src.cogs.management',
             'src.cogs.reputation', 'src.cogs.stats', 'src.cogs.tickets',
-            'src.cogs.welcome', 'src.cogs.debug'
+            'src.cogs.welcome', 'src.cogs.debug', 'src.ui.views.live_stock_view'
         ]
         
         for ext in extensions:
@@ -79,7 +79,9 @@ class StoreBot(commands.Bot):
                 await self.load_extension(ext)
                 logger.info(f"✓ Loaded: {ext}")
             except Exception as e:
-                logger.warning(f"✗ Failed to load {ext}: {e}")
+                logger.error(f"✗ Failed to load {ext}: {e}")
+                # Log detailed error untuk debugging
+                logger.error(f"Extension error details: {str(e)}", exc_info=True)
     
     async def on_ready(self):
         """Event ketika bot siap"""
