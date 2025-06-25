@@ -347,6 +347,15 @@ class LiveButtonManager(BaseLockHandler):
             self.current_message = None
             self.stock_manager = None
             self._ready = asyncio.Event()
+            
+            # Status tracking untuk sinkronisasi dengan livestock
+            self.button_status = {
+                'is_healthy': True,
+                'last_error': None,
+                'error_count': 0,
+                'last_update': None
+            }
+            
             self.initialized = True
             self.logger.info("LiveButtonManager initialized (refactored)")
 
@@ -366,6 +375,44 @@ class LiveButtonManager(BaseLockHandler):
             self.logger.error(f"Error getting button health report: {e}")
             return "Unable to generate button health report"
 
+    def get_status(self) -> Dict:
+        """Get current button status"""
+        return self.button_status.copy()
+
+    def is_healthy(self) -> bool:
+        """Check if button manager is healthy"""
+        return self.button_status['is_healthy']
+
+    async def _update_status(self, is_healthy: bool, error: str = None):
+        """Update button status"""
+        self.button_status['is_healthy'] = is_healthy
+        self.button_status['last_update'] = datetime.utcnow()
+        
+        if error:
+            self.button_status['last_error'] = error
+            self.button_status['error_count'] += 1
+            self.logger.error(f"❌ Button error: {error}")
+        else:
+            self.button_status['error_count'] = 0
+            self.button_status['last_error'] = None
+            
+        # Notify livestock manager about status change
+        if self.stock_manager and hasattr(self.stock_manager, 'on_button_status_change'):
+            try:
+                await self.stock_manager.on_button_status_change(is_healthy, error)
+            except Exception as e:
+                self.logger.error(f"Error notifying livestock manager: {e}")
+
+    async def on_livestock_status_change(self, is_healthy: bool, error: str = None):
+        """Handle livestock status change notification"""
+        if not is_healthy:
+            self.logger.warning(f"⚠️ Livestock tidak sehat: {error}")
+            # Jika livestock error, button juga tidak ditampilkan
+            await self._update_status(False, f"Livestock error: {error}")
+        else:
+            self.logger.info("✅ Livestock kembali sehat")
+            await self._update_status(True)
+
     async def set_stock_manager(self, stock_manager):
         """Set stock manager untuk integrasi"""
         self.stock_manager = stock_manager
@@ -377,9 +424,18 @@ class LiveButtonManager(BaseLockHandler):
         """Create or get existing message with both stock display and buttons"""
         self.logger.info("[MESSAGE_MANAGEMENT] Getting or creating live stock message")
         try:
+            # Check if livestock is healthy before proceeding
+            if self.stock_manager and hasattr(self.stock_manager, 'is_healthy'):
+                if not self.stock_manager.is_healthy():
+                    self.logger.warning("⚠️ Livestock tidak sehat, button tidak akan ditampilkan")
+                    await self._update_status(False, "Livestock tidak sehat")
+                    return None
+
             channel = self.bot.get_channel(self.stock_channel_id)
             if not channel:
-                self.logger.error(f"[MESSAGE_MANAGEMENT] Channel stock dengan ID {self.stock_channel_id} tidak ditemukan")
+                error_msg = f"Channel stock dengan ID {self.stock_channel_id} tidak ditemukan"
+                self.logger.error(f"[MESSAGE_MANAGEMENT] {error_msg}")
+                await self._update_status(False, error_msg)
                 return None
 
             # First check if stock manager has a valid message
@@ -394,11 +450,17 @@ class LiveButtonManager(BaseLockHandler):
                     view = self.create_view()
                     await self.current_message.edit(view=view)
                     self.logger.info("✅ Tombol berhasil diupdate pada pesan yang sudah ada")
+                    await self._update_status(True)
                     return self.current_message
                 except discord.NotFound:
                     self.logger.warning("Pesan yang ada sudah tidak valid, akan mencari yang baru")
                     self.stock_manager.current_stock_message = None
                     self.current_message = None
+                except Exception as e:
+                    error_msg = f"Error updating existing message: {e}"
+                    self.logger.error(error_msg)
+                    await self._update_status(False, error_msg)
+                    return None
 
             # Find last message if exists
             if self.stock_manager:

@@ -57,6 +57,15 @@ class LiveStockManager(BaseLockHandler):
             self.current_stock_message = None
             self.button_manager = None
             self._ready = asyncio.Event()
+            
+            # Status tracking untuk sinkronisasi dengan button
+            self.livestock_status = {
+                'is_healthy': True,
+                'last_error': None,
+                'error_count': 0,
+                'last_update': None
+            }
+            
             self.initialized = True
             self.logger.info("LiveStockManager initialized")
 
@@ -89,6 +98,44 @@ class LiveStockManager(BaseLockHandler):
         """Set button manager untuk integrasi"""
         self.button_manager = button_manager
         self.logger.info("Button manager set successfully")
+
+    def get_status(self) -> Dict:
+        """Get current livestock status"""
+        return self.livestock_status.copy()
+
+    def is_healthy(self) -> bool:
+        """Check if livestock is healthy"""
+        return self.livestock_status['is_healthy']
+
+    async def _update_status(self, is_healthy: bool, error: str = None):
+        """Update livestock status"""
+        self.livestock_status['is_healthy'] = is_healthy
+        self.livestock_status['last_update'] = datetime.utcnow()
+        
+        if error:
+            self.livestock_status['last_error'] = error
+            self.livestock_status['error_count'] += 1
+            self.logger.error(f"❌ Livestock error: {error}")
+        else:
+            self.livestock_status['error_count'] = 0
+            self.livestock_status['last_error'] = None
+            
+        # Notify button manager about status change
+        if self.button_manager and hasattr(self.button_manager, 'on_livestock_status_change'):
+            try:
+                await self.button_manager.on_livestock_status_change(is_healthy, error)
+            except Exception as e:
+                self.logger.error(f"Error notifying button manager: {e}")
+
+    async def on_button_status_change(self, is_healthy: bool, error: str = None):
+        """Handle button status change notification"""
+        if not is_healthy:
+            self.logger.warning(f"⚠️ Button tidak sehat: {error}")
+            # Jika button error, livestock juga tidak ditampilkan
+            await self._update_status(False, f"Button error: {error}")
+        else:
+            self.logger.info("✅ Button kembali sehat")
+            await self._update_status(True)
 
     async def create_stock_embed(self) -> discord.Embed:
         """Buat embed untuk display stock dengan tema modern"""
@@ -245,9 +292,18 @@ class LiveStockManager(BaseLockHandler):
     async def update_stock_display(self) -> bool:
         """Update tampilan stock dengan tombol yang selalu ada"""
         try:
+            # Check if button manager is healthy before proceeding
+            if self.button_manager and hasattr(self.button_manager, 'is_healthy'):
+                if not self.button_manager.is_healthy():
+                    self.logger.warning("⚠️ Button manager tidak sehat, livestock tidak akan ditampilkan")
+                    await self._update_status(False, "Button manager tidak sehat")
+                    return False
+
             channel = self.bot.get_channel(self.stock_channel_id)
             if not channel:
-                self.logger.error(f"Channel stock dengan ID {self.stock_channel_id} tidak ditemukan")
+                error_msg = f"Channel stock dengan ID {self.stock_channel_id} tidak ditemukan"
+                self.logger.error(error_msg)
+                await self._update_status(False, error_msg)
                 return False
 
             embed = await self.create_stock_embed()
@@ -258,12 +314,16 @@ class LiveStockManager(BaseLockHandler):
 
             # Buat view/tombol untuk update
             view = None
+            button_error = None
             if self.button_manager:
                 try:
                     view = self.button_manager.create_view()
                     self.logger.debug("Tombol berhasil dibuat untuk update stock")
                 except Exception as button_error:
                     self.logger.error(f"Error membuat tombol: {button_error}", exc_info=True)
+                    # Jika button error, livestock juga tidak ditampilkan
+                    await self._update_status(False, f"Error membuat tombol: {str(button_error)}")
+                    return False
 
             if not self.current_stock_message:
                 # Buat pesan baru jika tidak ada yang ditemukan
@@ -271,8 +331,10 @@ class LiveStockManager(BaseLockHandler):
                 self.current_stock_message = await channel.send(embed=embed, view=view)
                 if view:
                     self.logger.info("✅ Pesan baru berhasil dibuat dengan tombol")
+                    await self._update_status(True)
                 else:
                     self.logger.warning("⚠️ Pesan baru dibuat tanpa tombol")
+                    await self._update_status(False, "Pesan dibuat tanpa tombol")
                 return True
 
             try:
@@ -280,9 +342,11 @@ class LiveStockManager(BaseLockHandler):
                 if view:
                     await self.current_stock_message.edit(embed=embed, view=view)
                     self.logger.debug("✅ Pesan diupdate dengan embed dan tombol")
+                    await self._update_status(True)
                 else:
                     await self.current_stock_message.edit(embed=embed)
                     self.logger.warning("⚠️ Pesan diupdate hanya dengan embed (tanpa tombol)")
+                    await self._update_status(False, "Pesan diupdate tanpa tombol")
                 return True
 
             except discord.NotFound:
@@ -293,12 +357,16 @@ class LiveStockManager(BaseLockHandler):
                 self.current_stock_message = await channel.send(embed=embed, view=view)
                 if view:
                     self.logger.info("✅ Pesan pengganti berhasil dibuat dengan tombol")
+                    await self._update_status(True)
                 else:
                     self.logger.warning("⚠️ Pesan pengganti dibuat tanpa tombol")
+                    await self._update_status(False, "Pesan pengganti dibuat tanpa tombol")
                 return True
 
         except Exception as e:
-            self.logger.error(f"Error updating stock display: {e}", exc_info=True)
+            error_msg = f"Error updating stock display: {e}"
+            self.logger.error(error_msg, exc_info=True)
+            await self._update_status(False, error_msg)
             return False
 
     async def cleanup(self):
