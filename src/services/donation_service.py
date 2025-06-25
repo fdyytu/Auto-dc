@@ -26,14 +26,8 @@ PATHS = {
     'CONFIG': 'config.json'  # Adjust path sesuai kebutuhan
 }
 
-# Load config sekali saat modul di-import
-try:
-    with open(PATHS.CONFIG, 'r') as config_file:
-        config = json.load(config_file)
-    DONATION_CHANNEL_ID = int(config.get('id_donation_channel'))
-except Exception as e:
-    logging.error(f"Failed to load donation channel ID from config: {e}")
-    DONATION_CHANNEL_ID = None
+# Load config akan dilakukan saat setup, bukan saat import
+DONATION_CHANNEL_ID = None
 
 class DonationManager:
     """Manager class for handling donations"""
@@ -236,7 +230,12 @@ class Donation(commands.Cog):
 
 async def setup(bot):
     """Setup the Donation cog"""
+    global DONATION_CHANNEL_ID
+    
     if not hasattr(bot, 'donation_cog_loaded'):
+        # Load donation channel ID from bot config
+        DONATION_CHANNEL_ID = bot.config.get('id_donation_log')
+        
         # Validate config first
         if not DONATION_CHANNEL_ID:
             logging.error("Donation channel ID not found in config.json")

@@ -352,10 +352,9 @@ class LiveStockCog(commands.Cog):
             
             # Tunggu bot ready dengan timeout
             try:
-                async with asyncio.timeout(30):  # 30 detik timeout
-                    self.logger.info("Waiting for bot to be ready...")
-                    await self.bot.wait_until_ready()
-                    self.logger.info("Bot is ready, proceeding with initialization...")
+                self.logger.info("Waiting for bot to be ready...")
+                await asyncio.wait_for(self.bot.wait_until_ready(), timeout=30.0)
+                self.logger.info("Bot is ready, proceeding with initialization...")
             except asyncio.TimeoutError:
                 self.logger.error("Timeout waiting for bot ready")
                 return
@@ -429,9 +428,8 @@ async def setup(bot):
             
             # Tunggu stock manager ready dengan timeout yang lebih panjang
             try:
-                async with asyncio.timeout(10):  # 10 detik timeout
-                    await cog.stock_manager._ready.wait()
-                    logger.info("Stock manager is ready")
+                await asyncio.wait_for(cog.stock_manager._ready.wait(), timeout=30.0)
+                logger.info("Stock manager is ready")
             except asyncio.TimeoutError:
                 logger.error("Timeout waiting for stock manager initialization")
                 raise RuntimeError("Stock manager initialization timeout")

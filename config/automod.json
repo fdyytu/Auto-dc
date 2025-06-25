@@ -1,0 +1,22 @@
+{
+    "enabled": true,
+    "spam": {
+        "enabled": true,
+        "threshold": 5,
+        "timeframe": 5
+    },
+    "caps": {
+        "enabled": true,
+        "threshold": 0.7,
+        "min_length": 10
+    },
+    "banned_words": {
+        "enabled": true,
+        "words": [],
+        "wildcards": []
+    },
+    "punishments": {
+        "warn_threshold": 3,
+        "mute_duration": 10
+    }
+}
