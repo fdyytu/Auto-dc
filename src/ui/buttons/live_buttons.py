@@ -385,10 +385,20 @@ class LiveButtonManager(BaseLockHandler):
             # First check if stock manager has a valid message
             if self.stock_manager and self.stock_manager.current_stock_message:
                 self.current_message = self.stock_manager.current_stock_message
-                # Update buttons only
-                view = self.create_view()
-                await self.current_message.edit(view=view)
-                return self.current_message
+                self.logger.info("[MESSAGE_MANAGEMENT] Menggunakan pesan yang sudah ada dari stock manager")
+                
+                # Cek apakah pesan masih valid
+                try:
+                    await self.current_message.fetch()
+                    # Update tombol saja, jangan buat embed baru
+                    view = self.create_view()
+                    await self.current_message.edit(view=view)
+                    self.logger.info("✅ Tombol berhasil diupdate pada pesan yang sudah ada")
+                    return self.current_message
+                except discord.NotFound:
+                    self.logger.warning("Pesan yang ada sudah tidak valid, akan mencari yang baru")
+                    self.stock_manager.current_stock_message = None
+                    self.current_message = None
 
             # Find last message if exists
             if self.stock_manager:
@@ -397,14 +407,25 @@ class LiveButtonManager(BaseLockHandler):
                     self.current_message = existing_message
                     # Update both stock manager and button manager references
                     self.stock_manager.current_stock_message = existing_message
+                    self.logger.info("[MESSAGE_MANAGEMENT] Pesan live stock ditemukan, mengupdate tombol")
 
-                    # Update embed and view
-                    embed = await self.stock_manager.create_stock_embed()
-                    view = self.create_view()
-                    await existing_message.edit(embed=embed, view=view)
+                    # Cek apakah pesan sudah memiliki tombol
+                    has_buttons = len(existing_message.components) > 0
+                    if has_buttons:
+                        self.logger.info("✅ Pesan sudah memiliki tombol, hanya update view")
+                        view = self.create_view()
+                        await existing_message.edit(view=view)
+                    else:
+                        self.logger.info("⚠️ Pesan tidak memiliki tombol, menambahkan embed dan view")
+                        # Update embed dan view
+                        embed = await self.stock_manager.create_stock_embed()
+                        view = self.create_view()
+                        await existing_message.edit(embed=embed, view=view)
+                    
                     return existing_message
 
             # Create new message if none found
+            self.logger.info("[MESSAGE_MANAGEMENT] Tidak ada pesan yang ditemukan, membuat pesan baru")
             if self.stock_manager:
                 embed = await self.stock_manager.create_stock_embed()
             else:
@@ -416,6 +437,7 @@ class LiveButtonManager(BaseLockHandler):
 
             view = self.create_view()
             self.current_message = await channel.send(embed=embed, view=view)
+            self.logger.info("✅ Pesan baru berhasil dibuat dengan embed dan tombol")
 
             # Update stock manager reference
             if self.stock_manager:
@@ -424,7 +446,7 @@ class LiveButtonManager(BaseLockHandler):
             return self.current_message
 
         except Exception as e:
-            self.logger.error(f"Error in get_or_create_message: {e}")
+            self.logger.error(f"Error in get_or_create_message: {e}", exc_info=True)
             return None
 
     async def force_update(self):
@@ -523,14 +545,39 @@ class LiveButtonsCog(commands.Cog):
         try:
             message = self.button_manager.current_message
             if not message:
+                self.logger.info("[CHECK_DISPLAY] Tidak ada pesan, membuat pesan baru")
                 await self.button_manager.get_or_create_message()
             else:
-                # Hanya update embed, TIDAK update view
-                if self.stock_manager:
-                    embed = await self.stock_manager.stock_manager.create_stock_embed()
-                    await message.edit(embed=embed)
+                # Cek apakah pesan masih valid
+                try:
+                    await message.fetch()
+                    # Cek apakah pesan memiliki tombol
+                    has_buttons = len(message.components) > 0
+                    
+                    if self.stock_manager:
+                        embed = await self.stock_manager.stock_manager.create_stock_embed()
+                        
+                        if has_buttons:
+                            # Hanya update embed, jangan update view karena tombol sudah ada
+                            await message.edit(embed=embed)
+                            self.logger.debug("[CHECK_DISPLAY] ✅ Update embed saja (tombol sudah ada)")
+                        else:
+                            # Update embed dan tambahkan view karena tombol tidak ada
+                            view = self.button_manager.create_view()
+                            await message.edit(embed=embed, view=view)
+                            self.logger.info("[CHECK_DISPLAY] ✅ Update embed dan tambahkan tombol")
+                    else:
+                        self.logger.warning("[CHECK_DISPLAY] Stock manager tidak tersedia")
+                        
+                except discord.NotFound:
+                    self.logger.warning("[CHECK_DISPLAY] Pesan tidak ditemukan, akan membuat yang baru")
+                    self.button_manager.current_message = None
+                    if self.stock_manager:
+                        self.stock_manager.stock_manager.current_stock_message = None
+                    await self.button_manager.get_or_create_message()
+                    
         except Exception as e:
-            self.logger.error(f"Error in check_display: {e}")
+            self.logger.error(f"Error in check_display: {e}", exc_info=True)
 
     @check_display.before_loop
     async def before_check_display(self):
