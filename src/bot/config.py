@@ -32,10 +32,15 @@ class ConfigManager:
                 self._config = json.load(f)
             
             # Override token from environment variable if available
+            # Token bot HARUS dimuat dari environment variable untuk keamanan
             env_token = os.getenv('DISCORD_TOKEN')
             if env_token:
                 self._config['token'] = env_token
-                logger.info("Token dimuat dari environment variable")
+                logger.info("✅ Token dimuat dari environment variable DISCORD_TOKEN")
+            else:
+                logger.warning("⚠️  DISCORD_TOKEN tidak ditemukan di environment variables!")
+                if not self._config.get('token'):
+                    raise ValueError("Token bot tidak ditemukan! Set DISCORD_TOKEN di environment variables.")
             
             self._validate_config()
             logger.info("Konfigurasi berhasil dimuat")
