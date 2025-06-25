@@ -2,91 +2,20 @@ import discord
 from discord.ext import commands
 import datetime
 from collections import Counter
+import plotly.graph_objects as go
+import plotly.express as px
+from plotly.io import to_image
 import pandas as pd
 import io
 from .utils import Embed, get_connection, logger
 
 class ServerStats(commands.Cog):
-    """📊 Sistem Statistik Server (ASCII Charts - Ramah HP Low-End)"""
+    """📊 Sistem Statistik Server"""
     
     def __init__(self, bot):
         self.bot = bot
         self.message_history = {}
         self.voice_time = {}
-        
-    def create_ascii_bar_chart(self, data, labels, title="Chart", max_width=30):
-        """Create ASCII bar chart yang ramah untuk HP low-end"""
-        if not data or not labels:
-            return "❌ Tidak ada data untuk ditampilkan"
-            
-        max_value = max(data) if data else 1
-        chart_lines = [f"📊 {title}", "=" * (max_width + 10)]
-        
-        for i, (label, value) in enumerate(zip(labels, data)):
-            # Calculate bar length
-            bar_length = int((value / max_value) * max_width) if max_value > 0 else 0
-            bar = "█" * bar_length + "░" * (max_width - bar_length)
-            
-            # Truncate label if too long
-            display_label = label[:15] + "..." if len(label) > 15 else label
-            chart_lines.append(f"{display_label:<18} │{bar}│ {value}")
-        
-        chart_lines.append("=" * (max_width + 10))
-        return "\n".join(chart_lines)
-    
-    def create_ascii_line_chart(self, data, labels, title="Chart", max_width=50):
-        """Create ASCII line chart untuk trend data"""
-        if not data or not labels:
-            return "❌ Tidak ada data untuk ditampilkan"
-            
-        max_value = max(data) if data else 1
-        min_value = min(data) if data else 0
-        height = 10
-        
-        chart_lines = [f"📈 {title}", "=" * max_width]
-        
-        # Normalize data to chart height
-        normalized = []
-        for value in data:
-            if max_value == min_value:
-                normalized.append(height // 2)
-            else:
-                norm = int(((value - min_value) / (max_value - min_value)) * (height - 1))
-                normalized.append(norm)
-        
-        # Create chart grid
-        for row in range(height - 1, -1, -1):
-            line = ""
-            for col, norm_val in enumerate(normalized):
-                if norm_val >= row:
-                    line += "●"
-                else:
-                    line += " "
-                if col < len(normalized) - 1:
-                    line += " "
-            
-            # Add y-axis labels
-            if row == height - 1:
-                chart_lines.append(f"{max_value:>6} │{line}")
-            elif row == 0:
-                chart_lines.append(f"{min_value:>6} │{line}")
-            else:
-                chart_lines.append(f"{'':>6} │{line}")
-        
-        # Add x-axis
-        x_axis = "       └" + "─" * (len(normalized) * 2 - 1)
-        chart_lines.append(x_axis)
-        
-        # Add x-axis labels (show first, middle, last)
-        if len(labels) >= 3:
-            x_labels = f"        {labels[0]:<10}"
-            if len(labels) > 2:
-                mid_idx = len(labels) // 2
-                x_labels += f"{labels[mid_idx]:^10}{labels[-1]:>10}"
-            chart_lines.append(x_labels)
-        
-        chart_lines.append("=" * max_width)
-        return "\n".join(chart_lines)
         
     def log_activity(self, guild_id: int, user_id: int, activity_type: str, details: str = None):
         """Log any server activity"""
@@ -189,7 +118,7 @@ class ServerStats(commands.Cog):
 
     @commands.command(name="rolestat")
     async def role_statistics(self, ctx):
-        """📊 Tampilkan statistik role (ASCII Chart - Ramah HP Low-End)"""
+        """📊 Tampilkan statistik role"""
         roles = [role for role in ctx.guild.roles if not role.is_default()]
         
         if not roles:
@@ -198,24 +127,42 @@ class ServerStats(commands.Cog):
         member_counts = [len(role.members) for role in roles]
         role_names = [role.name for role in roles]
         
-        # Create ASCII bar chart
-        chart = self.create_ascii_bar_chart(
-            member_counts, 
-            role_names, 
-            "Role Distribution"
+        # Create plot with Plotly (lebih ringan untuk HP low-end)
+        fig = go.Figure(data=[
+            go.Bar(x=role_names, y=member_counts, 
+                   marker_color='lightblue',
+                   text=member_counts,
+                   textposition='auto')
+        ])
+        
+        fig.update_layout(
+            title='Role Distribution',
+            xaxis_title='Roles',
+            yaxis_title='Member Count',
+            xaxis_tickangle=-45,
+            height=400,
+            width=600
         )
         
+        # Save plot
+        buf = io.BytesIO()
+        img_bytes = to_image(fig, format="png", width=600, height=400)
+        buf.write(img_bytes)
+        buf.seek(0)
+        
+        # Send result
+        file = discord.File(buf, 'role_stats.png')
         embed = Embed(
-            title="📊 Role Statistics (ASCII Chart)",
-            description=f"```\n{chart}\n```",
-            color=discord.Color.blue()
+            title="📊 Role Statistics",
+            description=f"Distribution of {len(roles)} roles in the server"
         )
+        embed.set_image(url="attachment://role_stats.png")
         
-        await ctx.send(embed=embed)
+        await ctx.send(embed=embed, file=file)
 
     @commands.command(name="activitystats")
     async def activity_statistics(self, ctx, days: int = 7):
-        """📈 Tampilkan statistik aktivitas (ASCII Chart)"""
+        """📈 Tampilkan statistik aktivitas"""
         conn = None
         try:
             conn = get_connection()
@@ -236,25 +183,47 @@ class ServerStats(commands.Cog):
             if not data:
                 return await ctx.send("❌ Tidak ada data aktivitas!")
                 
-            # Process data for chart
+            # Create plot with Plotly
             df = pd.DataFrame(data, columns=['activity_type', 'count', 'date'])
             
-            # Create summary chart
-            activity_totals = df.groupby('activity_type')['count'].sum().to_dict()
+            fig = go.Figure()
             
-            chart = self.create_ascii_bar_chart(
-                list(activity_totals.values()),
-                list(activity_totals.keys()),
-                f"Activity Summary - Last {days} Days"
+            for activity in df['activity_type'].unique():
+                activity_data = df[df['activity_type'] == activity]
+                fig.add_trace(go.Scatter(
+                    x=activity_data['date'], 
+                    y=activity_data['count'],
+                    mode='lines+markers',
+                    name=activity,
+                    line=dict(width=2),
+                    marker=dict(size=6)
+                ))
+            
+            fig.update_layout(
+                title=f'Activity Statistics - Last {days} Days',
+                xaxis_title='Date',
+                yaxis_title='Activity Count',
+                xaxis_tickangle=-45,
+                height=400,
+                width=800,
+                showlegend=True
             )
             
+            # Save plot
+            buf = io.BytesIO()
+            img_bytes = to_image(fig, format="png", width=800, height=400)
+            buf.write(img_bytes)
+            buf.seek(0)
+            
+            # Send result
+            file = discord.File(buf, 'activity_stats.png')
             embed = Embed(
-                title="📈 Activity Statistics (ASCII Chart)",
-                description=f"```\n{chart}\n```",
-                color=discord.Color.green()
+                title="📈 Activity Statistics",
+                description=f"Activity overview for the last {days} days"
             )
+            embed.set_image(url="attachment://activity_stats.png")
             
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embed, file=file)
             
         except Exception as e:
             logger.error(f"Error getting activity statistics: {e}")
@@ -265,7 +234,7 @@ class ServerStats(commands.Cog):
 
     @commands.command(name="memberhistory")
     async def member_history(self, ctx):
-        """📈 Tampilkan history member (ASCII Line Chart)"""
+        """📈 Tampilkan history member"""
         conn = None
         try:
             conn = get_connection()
@@ -273,11 +242,10 @@ class ServerStats(commands.Cog):
             
             cursor.execute("""
                 SELECT member_count, 
-                       strftime('%m-%d', timestamp) as date
+                       strftime('%Y-%m-%d', timestamp) as date
                 FROM member_history
                 WHERE guild_id = ?
                 ORDER BY timestamp
-                LIMIT 30
             """, (str(ctx.guild.id),))
             
             data = cursor.fetchall()
@@ -285,23 +253,45 @@ class ServerStats(commands.Cog):
             if not data:
                 return await ctx.send("❌ Tidak ada data history member!")
                 
-            # Create line chart
+            # Create plot with Plotly
             dates = [row[1] for row in data]
             counts = [row[0] for row in data]
             
-            chart = self.create_ascii_line_chart(
-                counts,
-                dates,
-                "Member Growth History (Last 30 Records)"
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=dates, 
+                y=counts,
+                mode='lines+markers',
+                name='Member Count',
+                line=dict(color='blue', width=3),
+                marker=dict(size=8, color='lightblue')
+            ))
+            
+            fig.update_layout(
+                title='Member Growth History',
+                xaxis_title='Date',
+                yaxis_title='Member Count',
+                xaxis_tickangle=-45,
+                height=400,
+                width=800,
+                showlegend=False
             )
             
+            # Save plot
+            buf = io.BytesIO()
+            img_bytes = to_image(fig, format="png", width=800, height=400)
+            buf.write(img_bytes)
+            buf.seek(0)
+            
+            # Send result
+            file = discord.File(buf, 'member_history.png')
             embed = Embed(
-                title="📈 Member History (ASCII Chart)",
-                description=f"```\n{chart}\n```",
-                color=discord.Color.purple()
+                title="📈 Member History",
+                description="Server member count over time"
             )
+            embed.set_image(url="attachment://member_history.png")
             
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embed, file=file)
             
         except Exception as e:
             logger.error(f"Error getting member history: {e}")

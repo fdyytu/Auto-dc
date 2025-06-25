@@ -97,7 +97,25 @@ class LiveStockManager(BaseLockHandler):
     async def set_button_manager(self, button_manager):
         """Set button manager untuk integrasi"""
         self.button_manager = button_manager
-        self.logger.info("Button manager set successfully")
+        self.logger.info("✅ Button manager set successfully")
+        
+    async def wait_for_button_manager(self, timeout=30):
+        """Wait for button manager to be available"""
+        start_time = asyncio.get_event_loop().time()
+        while not self.button_manager and (asyncio.get_event_loop().time() - start_time) < timeout:
+            await asyncio.sleep(1)
+            # Try to get button manager from bot
+            if hasattr(self.bot, 'get_cog'):
+                button_cog = self.bot.get_cog('LiveButtonsCog')
+                if button_cog and hasattr(button_cog, 'button_manager'):
+                    self.button_manager = button_cog.button_manager
+                    self.logger.info("✅ Button manager found from LiveButtonsCog")
+                    break
+        
+        if not self.button_manager:
+            self.logger.warning("⚠️ Button manager masih tidak tersedia setelah timeout")
+            return False
+        return True
 
     def get_status(self) -> Dict:
         """Get current livestock status"""
@@ -126,6 +144,8 @@ class LiveStockManager(BaseLockHandler):
                 await self.button_manager.on_livestock_status_change(is_healthy, error)
             except Exception as e:
                 self.logger.error(f"Error notifying button manager: {e}")
+        elif not self.button_manager:
+            self.logger.debug("Button manager tidak tersedia untuk notifikasi status")
 
     async def on_button_status_change(self, is_healthy: bool, error: str = None):
         """Handle button status change notification"""
@@ -478,15 +498,12 @@ class LiveStockCog(commands.Cog):
             raise
     
     async def delayed_setup(self):
-        """Setup yang membutuhkan bot ready"""
+        """Setup yang ditunda sampai bot ready"""
         try:
-            self.logger.info("Starting delayed setup...")
-            
-            # Tunggu bot ready dengan timeout
+            # Wait for bot to be ready
             try:
-                self.logger.info("Waiting for bot to be ready...")
                 await asyncio.wait_for(self.bot.wait_until_ready(), timeout=30.0)
-                self.logger.info("Bot is ready, proceeding with initialization...")
+                self.logger.info("✓ Bot is ready")
             except asyncio.TimeoutError:
                 self.logger.error("Timeout waiting for bot ready")
                 return
@@ -498,6 +515,14 @@ class LiveStockCog(commands.Cog):
                 return
             else:
                 self.logger.info(f"✓ Live stock channel found: {channel.name} (ID: {channel.id})")
+            
+            # Wait for button manager (optional, tidak wajib)
+            self.logger.info("Menunggu button manager...")
+            button_available = await self.stock_manager.wait_for_button_manager(timeout=15)
+            if button_available:
+                self.logger.info("✅ Button manager tersedia")
+            else:
+                self.logger.warning("⚠️ Button manager tidak tersedia. Live stock akan berjalan tanpa button integration.")
             
             # Start background tasks
             await self.start_tasks()
