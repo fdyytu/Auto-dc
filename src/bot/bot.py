@@ -12,6 +12,7 @@ from typing import Optional
 from src.bot.config import config_manager
 from src.bot.logging import logging_manager
 from src.bot.hot_reload import HotReloadManager
+from src.bot.module_loader import ModuleLoader
 from src.services.cache_service import CacheManager
 from src.database.connection import DatabaseManager
 
@@ -42,6 +43,7 @@ class StoreBot(commands.Bot):
         self.cache_manager = CacheManager()
         self.db_manager = DatabaseManager()
         self.hot_reload_manager = HotReloadManager(self)
+        self.module_loader = ModuleLoader(self)
         
         # Status tracking
         self._ready = asyncio.Event()
@@ -56,8 +58,10 @@ class StoreBot(commands.Bot):
             if not await self.db_manager.initialize():
                 raise Exception("Gagal inisialisasi database")
             
-            # Load extensions
-            await self._load_extensions()
+            # Load semua modul menggunakan ModuleLoader
+            success = await self.module_loader.load_all_modules()
+            if not success:
+                logger.warning("⚠️  Beberapa modul gagal dimuat, bot tetap berjalan")
             
             logger.info("Setup bot selesai")
             
@@ -65,24 +69,7 @@ class StoreBot(commands.Bot):
             logger.critical(f"Gagal setup bot: {e}")
             await self.close()
     
-    async def _load_extensions(self):
-        """Load semua extensions dan cogs"""
-        extensions = [
-            'src.cogs.admin', 'src.cogs.automod', 'src.cogs.help_manager',
-            'src.cogs.leveling', 'src.cogs.management',
-            'src.cogs.reputation', 'src.cogs.stats', 'src.cogs.tickets',
-            'src.cogs.welcome', 'src.cogs.debug', 'src.ui.views.live_stock_view'
-        ]
-        
-        for ext in extensions:
-            try:
-                await self.load_extension(ext)
-                logger.info(f"✓ Loaded: {ext}")
-            except Exception as e:
-                logger.error(f"✗ Failed to load {ext}: {e}")
-                # Log detailed error untuk debugging
-                logger.error(f"Extension error details: {str(e)}", exc_info=True)
-    
+
     async def on_ready(self):
         """Event ketika bot siap"""
         if not self._setup_done:
@@ -130,6 +117,9 @@ class StoreBot(commands.Bot):
         """Cleanup sebelum shutdown"""
         try:
             logger.info("Memulai shutdown bot...")
+            
+            if hasattr(self, 'module_loader'):
+                await self.module_loader.unload_all_cogs()
             
             if hasattr(self, 'cache_manager'):
                 await self.cache_manager.clear_all()

@@ -680,3 +680,6 @@ async def setup(bot):
             f'Transaction Manager cog loaded successfully at '
             f'{datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")} UTC'
         )
+
+# Alias untuk backward compatibility
+TransactionService = TransactionManager
