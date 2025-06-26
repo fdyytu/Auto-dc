@@ -158,7 +158,7 @@ class RegisterModal(Modal):
         try:
             balance_service = BalanceService(interaction.client.db_manager)
             
-            growid = str(self.growid.value).strip().upper()
+            growid = str(self.growid.value).strip()
             self.logger.info(f"[REGISTER_MODAL] Processing registration for user {interaction.user.id} with GrowID: {growid}")
             
             if not growid or len(growid) < 3:
