@@ -73,6 +73,62 @@ class AdminStoreCog(AdminBaseCog):
             logger.error(f"Error remove product: {e}")
             await ctx.send(embed=message_formatter.error_embed("Terjadi error saat menghapus produk"))
     
+    @commands.command(name="addstock")
+    async def add_stock(self, ctx, code: str, *, content: str = None):
+        """Tambah stock untuk produk"""
+        try:
+            # Validasi input
+            if not input_validator.validate_product_code(code):
+                await ctx.send(embed=message_formatter.error_embed("Kode produk tidak valid"))
+                return
+            
+            # Jika tidak ada content, cek apakah ada attachment
+            if not content and not ctx.message.attachments:
+                error_msg = ("Harap berikan content stock atau lampirkan file!\n"
+                           "Contoh: `!addstock BUAH content stock disini`\n"
+                           "Atau lampirkan file text dengan daftar stock")
+                await ctx.send(embed=message_formatter.error_embed(error_msg))
+                return
+            
+            # Jika ada attachment, baca content dari file
+            if ctx.message.attachments:
+                attachment = ctx.message.attachments[0]
+                if attachment.filename.endswith(('.txt', '.csv')):
+                    try:
+                        file_content = await attachment.read()
+                        content = file_content.decode('utf-8')
+                    except Exception as e:
+                        await ctx.send(embed=message_formatter.error_embed(f"Gagal membaca file: {e}"))
+                        return
+                else:
+                    await ctx.send(embed=message_formatter.error_embed("File harus berformat .txt atau .csv"))
+                    return
+            
+            if not content or not content.strip():
+                await ctx.send(embed=message_formatter.error_embed("Content stock tidak boleh kosong"))
+                return
+            
+            # Tambah stock
+            response = await self.product_service.add_stock(
+                code.upper(), 
+                content.strip(), 
+                str(ctx.author.id)
+            )
+            
+            if response.success:
+                success_msg = (f"Stock berhasil ditambahkan!\n"
+                             f"Produk: {code.upper()}\n"
+                             f"Ditambahkan oleh: {ctx.author.mention}")
+                embed = message_formatter.success_embed(success_msg)
+            else:
+                embed = message_formatter.error_embed(f"Gagal menambah stock: {response.error}")
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error add stock: {e}")
+            await ctx.send(embed=message_formatter.error_embed("Terjadi error saat menambah stock"))
+
     @commands.command(name="listproducts")
     async def list_products(self, ctx):
         """Tampilkan daftar semua produk"""
