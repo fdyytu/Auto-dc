@@ -382,7 +382,7 @@ class BalanceManagerService(BaseLockHandler):
                 
                 cursor.execute(
                     """
-                    INSERT INTO transactions 
+                    INSERT INTO balance_transactions 
                     (growid, type, details, old_balance, new_balance, created_at)
                     VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                     """,
@@ -451,7 +451,7 @@ class BalanceManagerService(BaseLockHandler):
             cursor = conn.cursor()
             
             cursor.execute("""
-                SELECT * FROM transactions 
+                SELECT * FROM balance_transactions 
                 WHERE growid = ? COLLATE binary
                 ORDER BY created_at DESC
                 LIMIT ?
