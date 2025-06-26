@@ -139,6 +139,30 @@ async def _create_product_tables(cursor: sqlite3.Cursor):
             FOREIGN KEY (product_code) REFERENCES products(code)
         )
     """)
+    
+    # Balance transactions table (untuk balance history)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS balance_transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            growid TEXT NOT NULL,
+            type TEXT NOT NULL,
+            details TEXT,
+            old_balance TEXT,
+            new_balance TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # World info table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS world_info (
+            id INTEGER PRIMARY KEY,
+            world TEXT NOT NULL,
+            owner TEXT NOT NULL,
+            bot TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
 
 async def _create_system_tables(cursor: sqlite3.Cursor):
     """Buat tabel untuk system management"""

@@ -628,6 +628,31 @@ class TransactionManager(BaseLockHandler):
         finally:
             if 'product_cache' in locals():
                 product_cache.clear()
+
+    async def get_user_transactions(self, growid: str, limit: int = 10) -> TransactionResponse:
+        """Get user transaction history (alias untuk get_transaction_history)"""
+        try:
+            # Delegate ke balance manager untuk balance transactions
+            balance_response = await self.balance_manager.get_transaction_history(growid, limit)
+            
+            if balance_response.success:
+                return TransactionResponse.success(
+                    transaction_type='user_history',
+                    data=balance_response.data,
+                    message=f"Found {len(balance_response.data)} transactions"
+                )
+            else:
+                return TransactionResponse.error(
+                    balance_response.error,
+                    "Failed to get user transactions"
+                )
+                
+        except Exception as e:
+            self.logger.error(f"Error getting user transactions: {e}")
+            return TransactionResponse.error(
+                MESSAGES.ERROR['DATABASE_ERROR'],
+                str(e)
+            )
             
 class TransactionCog(commands.Cog):
     def __init__(self, bot):

@@ -268,8 +268,33 @@ class WorldInfoButtonHandler(BaseButtonHandler):
         
         # Get world info from database
         try:
-            conn = self.bot.db_manager.get_connection()
+            from src.database.connection import get_connection
+            
+            conn = get_connection()
             cursor = conn.cursor()
+            
+            # Check if world_info table exists, if not create it
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS world_info (
+                    id INTEGER PRIMARY KEY,
+                    world TEXT NOT NULL,
+                    owner TEXT NOT NULL,
+                    bot TEXT NOT NULL,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Insert default data if table is empty
+            cursor.execute("SELECT COUNT(*) FROM world_info")
+            count = cursor.fetchone()[0]
+            
+            if count == 0:
+                cursor.execute("""
+                    INSERT INTO world_info (id, world, owner, bot) 
+                    VALUES (1, 'BUYWORLD', 'OWNER', 'BOTNAME')
+                """)
+                conn.commit()
+            
             cursor.execute("SELECT world, owner, bot FROM world_info WHERE id = 1")
             result = cursor.fetchone()
             
@@ -279,9 +304,9 @@ class WorldInfoButtonHandler(BaseButtonHandler):
                     color=COLORS.INFO,
                     timestamp=datetime.utcnow()
                 )
-                embed.add_field(name="🏠 World", value=result['world'], inline=True)
-                embed.add_field(name="👑 Owner", value=result['owner'], inline=True)
-                embed.add_field(name="🤖 Bot", value=result['bot'], inline=True)
+                embed.add_field(name="🏠 World", value=result[0], inline=True)
+                embed.add_field(name="👑 Owner", value=result[1], inline=True)
+                embed.add_field(name="🤖 Bot", value=result[2], inline=True)
                 embed.add_field(
                     name="📝 Catatan",
                     value="Pastikan Anda berada di world yang benar untuk melakukan transaksi.",
@@ -305,5 +330,5 @@ class WorldInfoButtonHandler(BaseButtonHandler):
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
         finally:
-            if conn:
+            if 'conn' in locals() and conn:
                 conn.close()
