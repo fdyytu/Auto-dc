@@ -78,3 +78,8 @@ class AdminBaseCog(commands.Cog):
             pass  # Ignore jika gagal kirim pesan
         
         return False
+
+async def setup(bot):
+    """Setup function untuk loading cog"""
+    await bot.add_cog(AdminBaseCog(bot))
+    logger.info("Admin base cog loaded successfully")

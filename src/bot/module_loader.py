@@ -171,6 +171,12 @@ class ModuleLoader:
             # Skip priority files yang sudah dimuat
             if py_file.name in priority_order:
                 continue
+                
+            # Skip admin sub-cogs yang dimuat oleh admin.py
+            admin_sub_cogs = ['admin_base.py', 'admin_balance.py', 'admin_store.py', 'admin_system.py']
+            if py_file.name in admin_sub_cogs:
+                logger.debug(f"⏭️  Skipping admin sub-cog: {py_file.name} (loaded by admin.py)")
+                continue
             
             # Convert ke module name
             module_name = f"src.cogs.{py_file.stem}"
