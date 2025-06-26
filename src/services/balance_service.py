@@ -267,6 +267,106 @@ class BalanceManagerService(BaseLockHandler):
                 conn.close()
             self.release_lock(f"register_{discord_id}")
 
+    async def update_growid(self, discord_id: str, new_growid: str) -> BalanceResponse:
+        """Update GrowID for existing user"""
+        if not new_growid or len(new_growid) < 3:
+            return BalanceResponse.error(MESSAGES.ERROR['INVALID_GROWID'])
+            
+        lock = await self.acquire_lock(f"update_growid_{discord_id}")
+        if not lock:
+            return BalanceResponse.error(MESSAGES.ERROR['LOCK_ACQUISITION_FAILED'])
+
+        conn = None
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            
+            # Get current GrowID
+            cursor.execute(
+                "SELECT growid FROM user_growid WHERE discord_id = ? COLLATE binary",
+                (str(discord_id),)
+            )
+            current_result = cursor.fetchone()
+            if not current_result:
+                return BalanceResponse.error(MESSAGES.ERROR['NOT_REGISTERED'])
+            
+            old_growid = current_result['growid']
+            
+            # Check if new GrowID already exists for another user
+            cursor.execute(
+                "SELECT discord_id FROM user_growid WHERE growid = ? COLLATE binary AND discord_id != ?",
+                (new_growid, str(discord_id))
+            )
+            existing = cursor.fetchone()
+            if existing:
+                return BalanceResponse.error("❌ GrowID sudah digunakan oleh user lain!")
+            
+            conn.execute("BEGIN TRANSACTION")
+            
+            # Update user_growid table
+            cursor.execute(
+                "UPDATE user_growid SET growid = ? WHERE discord_id = ?",
+                (new_growid, str(discord_id))
+            )
+            
+            # Create new user entry if doesn't exist, or update existing
+            cursor.execute(
+                """
+                INSERT OR IGNORE INTO users (growid, balance_wl, balance_dl, balance_bgl) 
+                SELECT ?, balance_wl, balance_dl, balance_bgl FROM users WHERE growid = ?
+                """,
+                (new_growid, old_growid)
+            )
+            
+            # If user data exists for old growid, copy it to new growid
+            cursor.execute(
+                """
+                UPDATE users SET 
+                    balance_wl = (SELECT balance_wl FROM users WHERE growid = ?),
+                    balance_dl = (SELECT balance_dl FROM users WHERE growid = ?),
+                    balance_bgl = (SELECT balance_bgl FROM users WHERE growid = ?)
+                WHERE growid = ?
+                """,
+                (old_growid, old_growid, old_growid, new_growid)
+            )
+            
+            conn.commit()
+            
+            # Update caches
+            await self.cache_manager.delete(f"growid_{discord_id}")
+            await self.cache_manager.delete(f"discord_id_{old_growid}")
+            await self.cache_manager.delete(f"balance_{old_growid}")
+            await self.cache_manager.delete(f"balance_{new_growid}")
+            
+            await self.cache_manager.set(
+                f"growid_{discord_id}", 
+                new_growid,
+                expires_in=CACHE_TIMEOUT.get_seconds(CACHE_TIMEOUT.LONG)
+            )
+            await self.cache_manager.set(
+                f"discord_id_{new_growid}", 
+                discord_id,
+                expires_in=CACHE_TIMEOUT.get_seconds(CACHE_TIMEOUT.LONG)
+            )
+            
+            self.logger.info(f"GrowID updated for user {discord_id}: {old_growid} -> {new_growid}")
+            
+            return BalanceResponse.success(
+                {'discord_id': discord_id, 'old_growid': old_growid, 'new_growid': new_growid},
+                f"GrowID berhasil diperbarui dari {old_growid} ke {new_growid}"
+            )
+
+        except Exception as e:
+            self.logger.error(f"Error updating GrowID: {e}")
+            if conn:
+                conn.rollback()
+            await self.callback_manager.trigger('error', 'update_growid', str(e))
+            return BalanceResponse.error("Gagal memperbarui GrowID. Silakan coba lagi.")
+        finally:
+            if conn:
+                conn.close()
+            self.release_lock(f"update_growid_{discord_id}")
+
     async def get_balance(self, growid: str) -> BalanceResponse:
         """Get user balance with proper locking and caching"""
         cache_key = f"balance_{growid}"

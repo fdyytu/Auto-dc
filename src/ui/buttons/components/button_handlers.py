@@ -7,7 +7,7 @@ Komponen button handlers yang dipisahkan dari live_buttons.py
 """
 
 import discord
-from discord.ui import View, Button
+from discord.ui import View, Button, Modal, TextInput
 import logging
 import asyncio
 from datetime import datetime
@@ -180,12 +180,16 @@ class RegisterButtonHandler(BaseButtonHandler):
         # Check if user already registered
         growid_response = await self.balance_service.get_growid(str(interaction.user.id))
         if growid_response.success:
+            # User already registered, show update option
             embed = discord.Embed(
                 title="ℹ️ Sudah Terdaftar",
-                description=f"Anda sudah terdaftar dengan GrowID: **{growid_response.data}**",
+                description=f"Anda sudah terdaftar dengan GrowID: **{growid_response.data}**\n\nIngin memperbarui GrowID Anda?",
                 color=COLORS.INFO
             )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            
+            # Create view with update button
+            view = UpdateGrowIDView(growid_response.data)
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
             return
         
         # Show registration modal
@@ -332,3 +336,107 @@ class WorldInfoButtonHandler(BaseButtonHandler):
         finally:
             if 'conn' in locals() and conn:
                 conn.close()
+
+class UpdateGrowIDView(View):
+    """View untuk update GrowID yang sudah terdaftar"""
+    
+    def __init__(self, current_growid: str):
+        super().__init__(timeout=300)
+        self.current_growid = current_growid
+        self.logger = logging.getLogger("UpdateGrowIDView")
+    
+    @discord.ui.button(
+        label="🔄 Perbarui GrowID",
+        style=discord.ButtonStyle.primary,
+        custom_id="update_growid"
+    )
+    async def update_growid_button(self, interaction: discord.Interaction, button: Button):
+        """Button untuk update GrowID"""
+        self.logger.info(f"[UPDATE_GROWID] User {interaction.user.id} clicked update GrowID button")
+        
+        # Show update modal
+        modal = UpdateGrowIDModal(self.current_growid)
+        await interaction.response.send_modal(modal)
+    
+    @discord.ui.button(
+        label="❌ Batal",
+        style=discord.ButtonStyle.secondary,
+        custom_id="cancel_update"
+    )
+    async def cancel_button(self, interaction: discord.Interaction, button: Button):
+        """Button untuk batal update"""
+        embed = discord.Embed(
+            title="✅ Dibatalkan",
+            description="Update GrowID dibatalkan.",
+            color=COLORS.INFO
+        )
+        await interaction.response.edit_message(embed=embed, view=None)
+
+class UpdateGrowIDModal(Modal):
+    """Modal untuk update GrowID"""
+    
+    def __init__(self, current_growid: str):
+        super().__init__(title="🔄 Perbarui GrowID")
+        self.current_growid = current_growid
+        self.logger = logging.getLogger("UpdateGrowIDModal")
+
+        self.growid = TextInput(
+            label="Masukkan GrowID Baru",
+            placeholder=f"GrowID saat ini: {current_growid}",
+            min_length=3,
+            max_length=20,
+            required=True
+        )
+        self.add_item(self.growid)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        """Handle GrowID update submission"""
+        self.logger.info(f"[UPDATE_GROWID_MODAL] User {interaction.user.id} attempting GrowID update")
+        
+        await interaction.response.defer(ephemeral=True)
+        try:
+            balance_service = BalanceService(interaction.client.db_manager)
+            
+            new_growid = str(self.growid.value).strip()
+            self.logger.info(f"[UPDATE_GROWID_MODAL] Updating GrowID for user {interaction.user.id}: {self.current_growid} -> {new_growid}")
+            
+            if not new_growid or len(new_growid) < 3:
+                self.logger.warning(f"[UPDATE_GROWID_MODAL] Invalid GrowID format from user {interaction.user.id}: {new_growid}")
+                raise ValueError(MESSAGES.ERROR['INVALID_GROWID'])
+            
+            if new_growid == self.current_growid:
+                raise ValueError("❌ GrowID baru sama dengan yang lama!")
+
+            # Update GrowID
+            update_response = await balance_service.update_growid(
+                str(interaction.user.id),
+                new_growid
+            )
+
+            if not update_response.success:
+                raise ValueError(update_response.error)
+
+            success_embed = discord.Embed(
+                title="✅ Berhasil",
+                description=f"GrowID berhasil diperbarui!\n\n**Lama:** {self.current_growid}\n**Baru:** {new_growid}",
+                color=COLORS.SUCCESS
+            )
+            await interaction.followup.send(embed=success_embed, ephemeral=True)
+            self.logger.info(f"[UPDATE_GROWID_MODAL] GrowID update successful for user {interaction.user.id}: {self.current_growid} -> {new_growid}")
+
+        except ValueError as e:
+            self.logger.warning(f"[UPDATE_GROWID_MODAL] GrowID update failed for user {interaction.user.id}: {str(e)}")
+            error_embed = discord.Embed(
+                title="❌ Error",
+                description=str(e),
+                color=COLORS.ERROR
+            )
+            await interaction.followup.send(embed=error_embed, ephemeral=True)
+        except Exception as e:
+            self.logger.error(f"[UPDATE_GROWID_MODAL] Unexpected error for user {interaction.user.id}: {str(e)}")
+            error_embed = discord.Embed(
+                title="❌ Error",
+                description="Gagal memperbarui GrowID. Silakan coba lagi.",
+                color=COLORS.ERROR
+            )
+            await interaction.followup.send(embed=error_embed, ephemeral=True)

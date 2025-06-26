@@ -297,11 +297,11 @@ class LiveStockManager(BaseLockHandler):
     def _format_price(self, price: float) -> str:
         """Format price dengan currency rates dari constants"""
         try:
-            if price >= CURRENCY_RATES['BGL']:
-                return f"\u001b[0;35m{price/CURRENCY_RATES['BGL']:.1f} BGL\u001b[0m"
-            elif price >= CURRENCY_RATES['DL']:
-                return f"\u001b[0;34m{price/CURRENCY_RATES['DL']:.0f} DL\u001b[0m"
-            return f"\u001b[0;32m{int(price)} WL\u001b[0m"
+            if price >= CURRENCY_RATES.RATES['BGL']:
+                return f"[0;35m{price/CURRENCY_RATES.RATES['BGL']:.1f} BGL[0m"
+            elif price >= CURRENCY_RATES.RATES['DL']:
+                return f"[0;34m{price/CURRENCY_RATES.RATES['DL']:.0f} DL[0m"
+            return f"[0;32m{int(price)} WL[0m"
         except Exception:
             return "Invalid Price"
 
