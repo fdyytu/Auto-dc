@@ -120,6 +120,15 @@ class AdminStoreCog(AdminBaseCog):
                              f"Produk: {code.upper()}\n"
                              f"Ditambahkan oleh: {ctx.author.mention}")
                 embed = message_formatter.success_embed(success_msg)
+                
+                # Clear cache stock untuk produk ini agar live display terupdate
+                try:
+                    live_stock_cog = self.bot.get_cog('LiveStockCog')
+                    if live_stock_cog and hasattr(live_stock_cog, 'stock_manager'):
+                        await live_stock_cog.stock_manager.clear_stock_cache(code.upper())
+                        logger.info(f"✅ Stock cache cleared for product: {code.upper()}")
+                except Exception as e:
+                    logger.warning(f"Failed to clear stock cache: {e}")
             else:
                 embed = message_formatter.error_embed(f"Gagal menambah stock: {response.error}")
             
