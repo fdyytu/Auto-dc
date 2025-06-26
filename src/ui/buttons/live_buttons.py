@@ -48,6 +48,7 @@ from src.services.admin_service import AdminService
 from .components import (
     QuantityModal,
     RegisterModal,
+    BuyModal,
     ButtonStatistics,
     InteractionLockManager,
     RegisterButtonHandler,
@@ -216,52 +217,25 @@ class ShopView(View):
         await self.handle_with_lock(interaction, self._handle_buy, 'buy')
 
     async def _handle_buy(self, interaction: discord.Interaction):
-        """Handle buy button click"""
+        """Handle buy button click - langsung buka modal"""
         self.logger.info(f"[BUTTON_BUY] User {interaction.user.id} ({interaction.user.name}) clicked buy button")
         
-        await interaction.response.defer(ephemeral=True)
-        
-        # Check if user is registered
+        # Check if user is registered first
         growid_response = await self.balance_service.get_growid(str(interaction.user.id))
         if not growid_response.success:
-            embed = discord.Embed(
-                title="❌ Belum Terdaftar",
-                description=MESSAGES.ERROR['NOT_REGISTERED'],
-                color=COLORS.ERROR
+            await interaction.response.send_message(
+                embed=discord.Embed(
+                    title="❌ Belum Terdaftar",
+                    description=MESSAGES.ERROR['NOT_REGISTERED'],
+                    color=COLORS.ERROR
+                ),
+                ephemeral=True
             )
-            await interaction.followup.send(embed=embed, ephemeral=True)
             return
         
-        # Get available products
-        product_response = await self.product_service.get_all_products()
-        if not product_response.success:
-            embed = discord.Embed(
-                title="❌ Error",
-                description="Gagal mengambil daftar produk.",
-                color=COLORS.ERROR
-            )
-            await interaction.followup.send(embed=embed, ephemeral=True)
-            return
-        
-        products = product_response.data
-        if not products:
-            embed = discord.Embed(
-                title="📦 Tidak Ada Produk",
-                description="Saat ini tidak ada produk yang tersedia.",
-                color=COLORS.WARNING
-            )
-            await interaction.followup.send(embed=embed, ephemeral=True)
-            return
-        
-        # Show product selection
-        view = ProductSelectView(self.bot, products)
-        embed = discord.Embed(
-            title="🛒 Pilih Produk",
-            description="Pilih produk yang ingin Anda beli dari menu di bawah:",
-            color=COLORS.PRIMARY
-        )
-        
-        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+        # Langsung tampilkan modal untuk input kode produk dan jumlah
+        modal = BuyModal()
+        await interaction.response.send_modal(modal)
 
     @discord.ui.button(
         label="📋 Riwayat",

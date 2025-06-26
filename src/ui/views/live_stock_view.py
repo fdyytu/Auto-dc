@@ -305,6 +305,36 @@ class LiveStockManager(BaseLockHandler):
         except Exception:
             return "Invalid Price"
 
+    async def clear_stock_cache(self, product_code: str = None):
+        """Clear cache untuk stock count, bisa untuk produk tertentu atau semua"""
+        try:
+            if product_code:
+                # Clear cache untuk produk tertentu
+                stock_cache_key = f'stock_count_{product_code}'
+                await self.cache_manager.delete(stock_cache_key)
+                self.logger.info(f"✅ Cache cleared for product: {product_code}")
+            else:
+                # Clear semua cache stock menggunakan pattern
+                await self.cache_manager.delete_pattern('stock_count_')
+                self.logger.info(f"✅ All stock cache cleared")
+        except Exception as e:
+            self.logger.error(f"Error clearing stock cache: {e}")
+
+    async def force_stock_refresh(self):
+        """Force refresh stock display dengan clear cache"""
+        try:
+            # Clear semua cache stock
+            await self.clear_stock_cache()
+            
+            # Clear cache produk juga
+            await self.cache_manager.delete('all_products_display')
+            
+            # Update display
+            await self.update_stock_display()
+            self.logger.info("✅ Stock display force refreshed")
+        except Exception as e:
+            self.logger.error(f"Error force refreshing stock: {e}")
+
     async def update_stock_display(self) -> bool:
         """Update stock display dengan proper error handling dan button integration"""
         try:
