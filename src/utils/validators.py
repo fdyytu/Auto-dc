@@ -61,6 +61,15 @@ class InputValidator:
             return None
     
     @staticmethod
+    def validate_amount(amount: Union[str, int]) -> Optional[int]:
+        """Validasi dan konversi amount untuk balance"""
+        try:
+            amount_int = int(amount)
+            return amount_int if amount_int > 0 else None
+        except (ValueError, TypeError):
+            return None
+    
+    @staticmethod
     def sanitize_text(text: str, max_length: int = 500) -> str:
         """Sanitize text input"""
         if not text or not isinstance(text, str):

@@ -32,7 +32,7 @@ class RegisterModal(Modal):
         try:
             balance_service = BalanceManagerService(interaction.client)
 
-            growid = str(self.growid.value).strip().upper()
+            growid = str(self.growid.value).strip()
             if not growid or len(growid) < 3:
                 raise ValueError(MESSAGES.ERROR['INVALID_GROWID'])
 

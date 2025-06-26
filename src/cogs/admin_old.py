@@ -1,0 +1,682 @@
+"""
+Admin Commands Cog - Optimized
+Menangani command admin dengan struktur yang lebih bersih
+"""
+
+import discord
+from discord.ext import commands
+import logging
+import asyncio
+from datetime import datetime
+from typing import Optional
+
+from src.bot.config import config_manager
+from src.services.user_service import UserService
+from src.services.product_service import ProductService
+from src.services.world_service import WorldService
+from src.handlers.business_command_handler import CommandHandler
+from src.utils.formatters import message_formatter
+from src.utils.validators import input_validator
+
+logger = logging.getLogger(__name__)
+
+class AdminCog(commands.Cog):
+    """Cog untuk admin commands"""
+    
+    def __init__(self, bot):
+        self.bot = bot
+        self.config = config_manager
+        self.user_service = UserService(bot.db_manager)
+        self.product_service = ProductService(bot.db_manager)
+        self.world_service = WorldService(bot.db_manager)
+        self.command_handler = CommandHandler(self.user_service, self.product_service)
+    
+    async def cog_check(self, ctx: commands.Context) -> bool:
+        """Cek permission admin dengan logging detail"""
+        admin_id = self.config.get('admin_id')
+        admin_role_id = self.config.get_roles().get('admin')
+        
+        # Log informasi debug
+        logger.info(f"🔍 Admin check untuk user: {ctx.author.name} (ID: {ctx.author.id})")
+        logger.info(f"📋 Admin ID dari config: {admin_id} (tipe: {type(admin_id)})")
+        logger.info(f"📋 Admin Role ID dari config: {admin_role_id} (tipe: {type(admin_role_id)})")
+        
+        # Cek admin ID
+        if ctx.author.id == admin_id:
+            logger.info(f"✅ User {ctx.author.name} dikenali sebagai admin berdasarkan User ID")
+            return True
+        else:
+            logger.info(f"❌ User ID {ctx.author.id} tidak cocok dengan admin ID {admin_id}")
+        
+        # Cek admin role
+        if admin_role_id:
+            user_role_ids = [role.id for role in ctx.author.roles]
+            logger.info(f"👥 Role user: {[f'{role.name}({role.id})' for role in ctx.author.roles]}")
+            logger.info(f"🔍 Mencari admin role ID {admin_role_id} dalam role user: {user_role_ids}")
+            
+            if admin_role_id in user_role_ids:
+                logger.info(f"✅ User {ctx.author.name} dikenali sebagai admin berdasarkan Role")
+                return True
+            else:
+                logger.info(f"❌ Admin role ID {admin_role_id} tidak ditemukan dalam role user")
+        else:
+            logger.info("⚠️ Admin role ID tidak dikonfigurasi")
+        
+        logger.warning(f"🚫 User {ctx.author.name} (ID: {ctx.author.id}) TIDAK dikenali sebagai admin")
+        
+        # Kirim pesan error yang informatif
+        embed = discord.Embed(
+            title="🚫 Akses Ditolak",
+            description="Anda tidak memiliki izin untuk menggunakan command admin.",
+            color=0xff0000
+        )
+        embed.add_field(
+            name="ℹ️ Info",
+            value=f"Command admin hanya dapat digunakan oleh:\n"
+                  f"• User dengan ID: `{admin_id}`\n"
+                  f"• User dengan role admin (ID: `{admin_role_id}`)",
+            inline=False
+        )
+        embed.add_field(
+            name="🔍 Debug Info",
+            value=f"Your ID: `{ctx.author.id}`\n"
+                  f"Your Roles: {', '.join([f'`{role.name}`' for role in ctx.author.roles])}",
+            inline=False
+        )
+        
+        try:
+            await ctx.send(embed=embed, delete_after=10)
+        except:
+            pass  # Ignore jika gagal kirim pesan
+        
+        return False
+    
+    @commands.command(name="addproduct")
+    async def add_product(self, ctx, code: str, name: str, price: str, *, description: str = None):
+        """Tambah produk baru"""
+        try:
+            # Validasi input
+            if not input_validator.validate_product_code(code):
+                await ctx.send(embed=message_formatter.error_embed("Kode produk tidak valid"))
+                return
+            
+            validated_price = input_validator.validate_price(price)
+            if not validated_price:
+                await ctx.send(embed=message_formatter.error_embed("Harga tidak valid"))
+                return
+            
+            # Buat produk
+            success = await self.product_service.create_product(
+                code.upper(), name, validated_price, description
+            )
+            
+            if success:
+                embed = message_formatter.success_embed(
+                    "Produk Ditambahkan",
+                    f"Kode: {code.upper()}\nNama: {name}\nHarga: {validated_price:,} WL"
+                )
+                await ctx.send(embed=embed)
+            else:
+                await ctx.send(embed=message_formatter.error_embed("Gagal menambah produk"))
+                
+        except Exception as e:
+            logger.error(f"Error add product: {e}")
+            await ctx.send(embed=message_formatter.error_embed("Terjadi error"))
+    
+    @commands.command(name="addstock")
+    async def add_stock(self, ctx, code: str, *, content: str):
+        """Tambah stock produk"""
+        try:
+            # Cek produk ada
+            product = await self.product_service.get_product(code.upper())
+            if not product:
+                await ctx.send(embed=message_formatter.error_embed("Produk tidak ditemukan"))
+                return
+            
+            # Tambah stock
+            success = await self.product_service.add_stock(
+                code.upper(), content, str(ctx.author.id)
+            )
+            
+            if success:
+                embed = message_formatter.success_embed(
+                    "Stock Ditambahkan",
+                    f"Produk: {product['name']} ({code.upper()})"
+                )
+                await ctx.send(embed=embed)
+            else:
+                await ctx.send(embed=message_formatter.error_embed("Gagal menambah stock"))
+                
+        except Exception as e:
+            logger.error(f"Error add stock: {e}")
+            await ctx.send(embed=message_formatter.error_embed("Terjadi error"))
+    
+    @commands.command(name="balance")
+    async def manage_balance(self, ctx, action: str, growid: str, balance_type: str, amount: str):
+        """Kelola balance user (add/remove)"""
+        try:
+            # Validasi input
+            if action.lower() not in ['add', 'remove']:
+                await ctx.send(embed=message_formatter.error_embed("Action harus 'add' atau 'remove'"))
+                return
+            
+            if balance_type.lower() not in ['wl', 'dl', 'bgl']:
+                await ctx.send(embed=message_formatter.error_embed("Balance type: wl, dl, atau bgl"))
+                return
+            
+            validated_amount = input_validator.validate_price(amount)
+            if not validated_amount:
+                await ctx.send(embed=message_formatter.error_embed("Amount tidak valid"))
+                return
+            
+            # Cek user ada
+            user = await self.user_service.get_user_by_growid(growid)
+            if not user:
+                await ctx.send(embed=message_formatter.error_embed("User tidak ditemukan"))
+                return
+            
+            # Update balance
+            final_amount = validated_amount if action.lower() == 'add' else -validated_amount
+            balance_field = f"balance_{balance_type.lower()}"
+            
+            success = await self.user_service.update_balance(growid, balance_field, final_amount)
+            
+            if success:
+                embed = message_formatter.success_embed(
+                    "Balance Diupdate",
+                    f"User: {growid}\n{action.title()}: {validated_amount:,} {balance_type.upper()}"
+                )
+                await ctx.send(embed=embed)
+            else:
+                await ctx.send(embed=message_formatter.error_embed("Gagal update balance"))
+                
+        except Exception as e:
+            logger.error(f"Error manage balance: {e}")
+            await ctx.send(embed=message_formatter.error_embed("Terjadi error"))
+    
+    @commands.group(name="reload", invoke_without_command=True)
+    async def reload_group(self, ctx):
+        """Group command untuk hot reload"""
+        embed = discord.Embed(
+            title="🔄 Hot Reload Commands",
+            description="Commands untuk mengelola hot reload system",
+            color=0x00ff00
+        )
+        embed.add_field(
+            name="Commands:",
+            value="""
+            `!reload status` - Cek status hot reload
+            `!reload toggle` - Toggle hot reload on/off
+            `!reload cog <nama>` - Reload cog tertentu
+            `!reload all` - Reload semua cogs
+            """,
+            inline=False
+        )
+        await ctx.send(embed=embed)
+    
+    @reload_group.command(name="status")
+    async def reload_status(self, ctx):
+        """Cek status hot reload"""
+        try:
+            status = self.bot.hot_reload_manager.get_status()
+            
+            embed = discord.Embed(
+                title="🔄 Hot Reload Status",
+                color=0x00ff00 if status["enabled"] else 0xff0000
+            )
+            
+            embed.add_field(
+                name="Status",
+                value="🟢 Aktif" if status["enabled"] else "🔴 Tidak Aktif",
+                inline=True
+            )
+            embed.add_field(
+                name="Watching Directories",
+                value=str(status["watching"]),
+                inline=True
+            )
+            embed.add_field(
+                name="Loaded Extensions",
+                value=str(status["loaded_extensions"]),
+                inline=True
+            )
+            
+            config_info = status["config"]
+            embed.add_field(
+                name="Configuration",
+                value=f"""
+                Auto Reload Cogs: {'✅' if config_info.get('auto_reload_cogs') else '❌'}
+                Log Reloads: {'✅' if config_info.get('log_reloads') else '❌'}
+                Reload Delay: {config_info.get('reload_delay', 1.0)}s
+                """,
+                inline=False
+            )
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error getting reload status: {e}")
+            await ctx.send(embed=message_formatter.error_embed("Gagal mendapatkan status"))
+    
+    @reload_group.command(name="toggle")
+    async def reload_toggle(self, ctx):
+        """Toggle hot reload on/off"""
+        try:
+            if self.bot.hot_reload_manager.is_enabled():
+                await self.bot.hot_reload_manager.stop()
+                embed = message_formatter.success_embed(
+                    "Hot Reload Dimatikan",
+                    "Auto reload telah dinonaktifkan"
+                )
+            else:
+                success = await self.bot.hot_reload_manager.start()
+                if success:
+                    embed = message_formatter.success_embed(
+                        "Hot Reload Diaktifkan",
+                        "Auto reload telah diaktifkan"
+                    )
+                else:
+                    embed = message_formatter.error_embed("Gagal mengaktifkan hot reload")
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error toggling reload: {e}")
+            await ctx.send(embed=message_formatter.error_embed("Gagal toggle hot reload"))
+    
+    @reload_group.command(name="cog")
+    async def reload_cog(self, ctx, cog_name: str):
+        """Reload cog tertentu"""
+        try:
+            # Pastikan nama cog dalam format yang benar
+            if not cog_name.startswith("cogs."):
+                cog_name = f"cogs.{cog_name}"
+            
+            # Cek apakah cog ada
+            if cog_name not in self.bot.extensions:
+                await ctx.send(embed=message_formatter.error_embed(f"Cog {cog_name} tidak ditemukan"))
+                return
+            
+            # Reload cog
+            await self.bot.reload_extension(cog_name)
+            
+            embed = message_formatter.success_embed(
+                "Cog Direload",
+                f"✅ {cog_name} berhasil direload"
+            )
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error reloading cog {cog_name}: {e}")
+            await ctx.send(embed=message_formatter.error_embed(f"Gagal reload {cog_name}: {str(e)}"))
+    
+    @reload_group.command(name="all")
+    async def reload_all(self, ctx):
+        """Reload semua cogs"""
+        try:
+            # Kirim pesan loading
+            loading_msg = await ctx.send("🔄 Reloading semua cogs...")
+            
+            # Reload semua cogs
+            reloaded, failed = await self.bot.hot_reload_manager.reload_all_cogs()
+            
+            # Update pesan dengan hasil
+            embed = discord.Embed(
+                title="🔄 Reload All Cogs Complete",
+                color=0x00ff00 if failed == 0 else 0xffaa00
+            )
+            embed.add_field(name="✅ Berhasil", value=str(reloaded), inline=True)
+            embed.add_field(name="❌ Gagal", value=str(failed), inline=True)
+            embed.add_field(name="📊 Total", value=str(reloaded + failed), inline=True)
+            
+            await loading_msg.edit(content="", embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error reloading all cogs: {e}")
+            await ctx.send(embed=message_formatter.error_embed("Gagal reload semua cogs"))
+    
+    @commands.group(name="world", invoke_without_command=True)
+    async def world_group(self, ctx):
+        """Group command untuk world management"""
+        embed = discord.Embed(
+            title="🌍 World Management Commands",
+            description="Commands untuk mengelola world system",
+            color=0x00ff00
+        )
+        embed.add_field(
+            name="Commands:",
+            value="""
+            `!world add <world> <owner> <bot>` - Tambah world baru
+            `!world list` - Lihat semua world
+            `!world info <world>` - Info detail world
+            `!world update <world> [owner] [bot]` - Update world
+            `!world remove <world>` - Hapus world
+            """,
+            inline=False
+        )
+        await ctx.send(embed=embed)
+    
+    @world_group.command(name="add")
+    async def world_add(self, ctx, world_name: str, owner_name: str, bot_name: str):
+        """Tambah world baru"""
+        try:
+            response = await self.world_service.add_world(world_name, owner_name, bot_name)
+            
+            if response.success:
+                embed = message_formatter.success_embed(
+                    "World Ditambahkan",
+                    f"World: {world_name}\nOwner: {owner_name}\nBot: {bot_name}"
+                )
+                await ctx.send(embed=embed)
+            else:
+                await ctx.send(embed=message_formatter.error_embed(response.error))
+                
+        except Exception as e:
+            logger.error(f"Error adding world: {e}")
+            await ctx.send(embed=message_formatter.error_embed("Terjadi error"))
+    
+    @world_group.command(name="list")
+    async def world_list(self, ctx):
+        """Lihat semua world"""
+        try:
+            response = await self.world_service.get_all_worlds()
+            
+            if not response.success:
+                await ctx.send(embed=message_formatter.error_embed(response.error))
+                return
+            
+            worlds = response.data
+            if not worlds:
+                await ctx.send(embed=message_formatter.info_embed("Tidak ada world yang terdaftar"))
+                return
+            
+            embed = discord.Embed(
+                title="🌍 Daftar World",
+                color=0x00ff00
+            )
+            
+            for world in worlds:
+                embed.add_field(
+                    name=f"🌍 {world['world_name']}",
+                    value=f"Owner: {world['owner_name']}\nBot: {world['bot_name']}\nCreated: {world['created_at'][:10]}",
+                    inline=True
+                )
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error listing worlds: {e}")
+            await ctx.send(embed=message_formatter.error_embed("Terjadi error"))
+    
+    @world_group.command(name="info")
+    async def world_info(self, ctx, world_name: str):
+        """Info detail world"""
+        try:
+            response = await self.world_service.get_world(world_name)
+            
+            if not response.success:
+                await ctx.send(embed=message_formatter.error_embed(response.error))
+                return
+            
+            world = response.data
+            embed = discord.Embed(
+                title=f"🌍 {world['world_name']}",
+                color=0x00ff00
+            )
+            embed.add_field(name="Owner", value=world['owner_name'], inline=True)
+            embed.add_field(name="Bot", value=world['bot_name'], inline=True)
+            embed.add_field(name="Status", value="🟢 Active" if world['is_active'] else "🔴 Inactive", inline=True)
+            embed.add_field(name="Created", value=world['created_at'][:19], inline=True)
+            embed.add_field(name="Updated", value=world['updated_at'][:19], inline=True)
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error getting world info: {e}")
+            await ctx.send(embed=message_formatter.error_embed("Terjadi error"))
+    
+    @world_group.command(name="update")
+    async def world_update(self, ctx, world_name: str, owner_name: str = None, bot_name: str = None):
+        """Update world data"""
+        try:
+            if not owner_name and not bot_name:
+                await ctx.send(embed=message_formatter.error_embed("Minimal satu parameter harus diisi"))
+                return
+            
+            response = await self.world_service.update_world(world_name, owner_name, bot_name)
+            
+            if response.success:
+                embed = message_formatter.success_embed(
+                    "World Diupdate",
+                    f"World {world_name} berhasil diupdate"
+                )
+                await ctx.send(embed=embed)
+            else:
+                await ctx.send(embed=message_formatter.error_embed(response.error))
+                
+        except Exception as e:
+            logger.error(f"Error updating world: {e}")
+            await ctx.send(embed=message_formatter.error_embed("Terjadi error"))
+    
+    @world_group.command(name="remove")
+    async def world_remove(self, ctx, world_name: str):
+        """Hapus world"""
+        try:
+            response = await self.world_service.delete_world(world_name)
+            
+            if response.success:
+                embed = message_formatter.success_embed(
+                    "World Dihapus",
+                    f"World {world_name} berhasil dihapus"
+                )
+                await ctx.send(embed=embed)
+            else:
+                await ctx.send(embed=message_formatter.error_embed(response.error))
+                
+        except Exception as e:
+            logger.error(f"Error removing world: {e}")
+            await ctx.send(embed=message_formatter.error_embed("Terjadi error"))
+    
+    @commands.command(name="admintest")
+    @commands.check(lambda ctx: True)  # Bypass admin check untuk debugging
+    async def test_admin(self, ctx):
+        """Test admin detection - command untuk debugging"""
+        try:
+            admin_id = self.config.get('admin_id')
+            admin_role_id = self.config.get_roles().get('admin')
+            
+            embed = discord.Embed(
+                title="🔍 Admin Detection Test",
+                description="Hasil test deteksi admin:",
+                color=0x00ff00
+            )
+            
+            # Info user
+            embed.add_field(
+                name="👤 User Info",
+                value=f"Nama: {ctx.author.name}\nID: {ctx.author.id}",
+                inline=False
+            )
+            
+            # Info config
+            embed.add_field(
+                name="⚙️ Config Info",
+                value=f"Admin ID: {admin_id}\nAdmin Role ID: {admin_role_id}",
+                inline=False
+            )
+            
+            # Info roles
+            user_roles = [f"{role.name} ({role.id})" for role in ctx.author.roles]
+            embed.add_field(
+                name="👥 User Roles",
+                value="\n".join(user_roles) if user_roles else "Tidak ada role",
+                inline=False
+            )
+            
+            # Test hasil
+            is_admin_by_id = ctx.author.id == admin_id
+            user_role_ids = [role.id for role in ctx.author.roles]
+            is_admin_by_role = admin_role_id in user_role_ids if admin_role_id else False
+            
+            embed.add_field(
+                name="✅ Test Results",
+                value=f"Admin by ID: {'✅ Ya' if is_admin_by_id else '❌ Tidak'}\n"
+                      f"Admin by Role: {'✅ Ya' if is_admin_by_role else '❌ Tidak'}\n"
+                      f"Overall Admin: {'✅ Ya' if (is_admin_by_id or is_admin_by_role) else '❌ Tidak'}",
+                inline=False
+            )
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error admin test: {e}")
+            await ctx.send(embed=message_formatter.error_embed("Terjadi error saat test admin"))
+
+    @commands.command(name="restart")
+    async def restart_bot(self, ctx):
+        """Restart bot server"""
+        try:
+            # Konfirmasi restart
+            embed = discord.Embed(
+                title="🔄 Restart Bot",
+                description="Apakah Anda yakin ingin me-restart bot?\nBot akan offline sementara.",
+                color=0xff9900
+            )
+            embed.add_field(
+                name="⚠️ Peringatan", 
+                value="Semua proses yang sedang berjalan akan dihentikan.", 
+                inline=False
+            )
+            embed.set_footer(text="Ketik 'ya' untuk konfirmasi atau 'tidak' untuk membatalkan")
+            
+            await ctx.send(embed=embed)
+            
+            # Tunggu konfirmasi
+            def check(message):
+                return (message.author == ctx.author and 
+                       message.channel == ctx.channel and 
+                       message.content.lower() in ['ya', 'tidak', 'yes', 'no'])
+            
+            try:
+                response = await self.bot.wait_for('message', check=check, timeout=30.0)
+                
+                if response.content.lower() in ['ya', 'yes']:
+                    # Kirim pesan restart
+                    restart_embed = discord.Embed(
+                        title="🔄 Restarting...",
+                        description="Bot sedang di-restart. Mohon tunggu beberapa saat...\n🧹 Membersihkan cache dan state...",
+                        color=0x00ff00
+                    )
+                    await ctx.send(embed=restart_embed)
+                    
+                    logger.info(f"Bot restart diminta oleh {ctx.author} ({ctx.author.id})")
+                    
+                    # Cleanup cache dan state sebelum restart
+                    await self._cleanup_before_restart()
+                    
+                    # Cleanup dan restart
+                    await self.bot.close()
+                    
+                    # Import untuk restart
+                    import os
+                    import sys
+                    
+                    # Restart menggunakan execv
+                    os.execv(sys.executable, ['python'] + sys.argv)
+                    
+                else:
+                    cancel_embed = discord.Embed(
+                        title="❌ Restart Dibatalkan",
+                        description="Restart bot dibatalkan.",
+                        color=0xff0000
+                    )
+                    await ctx.send(embed=cancel_embed)
+                    
+            except asyncio.TimeoutError:
+                timeout_embed = discord.Embed(
+                    title="⏰ Timeout",
+                    description="Konfirmasi restart timeout. Restart dibatalkan.",
+                    color=0xff0000
+                )
+                await ctx.send(embed=timeout_embed)
+                
+        except Exception as e:
+            logger.error(f"Error restart command: {e}")
+            await ctx.send(embed=message_formatter.error_embed("Terjadi error saat restart"))
+
+    async def _cleanup_before_restart(self):
+        """Membersihkan cache dan state sebelum restart"""
+        try:
+            logger.info("🧹 Memulai pembersihan sebelum restart...")
+            
+            # 1. Bersihkan cache system
+            try:
+                from src.services.cache_service import CacheManager
+                cache_manager = CacheManager()
+                await cache_manager.clear()
+                logger.info("✅ Cache system dibersihkan")
+            except Exception as e:
+                logger.error(f"❌ Error membersihkan cache: {e}")
+            
+            # 2. Bersihkan state livestock manager
+            try:
+                livestock_cog = self.bot.get_cog('LiveStockCog')
+                if livestock_cog and hasattr(livestock_cog, 'stock_manager'):
+                    livestock_cog.stock_manager.current_stock_message = None
+                    if hasattr(livestock_cog.stock_manager, 'button_manager'):
+                        livestock_cog.stock_manager.button_manager = None
+                    logger.info("✅ Livestock state dibersihkan")
+            except Exception as e:
+                logger.error(f"❌ Error membersihkan livestock state: {e}")
+            
+            # 3. Bersihkan state button manager
+            try:
+                button_cog = self.bot.get_cog('LiveButtonsCog')
+                if button_cog and hasattr(button_cog, 'button_manager'):
+                    button_cog.button_manager.current_message = None
+                    if hasattr(button_cog.button_manager, 'stock_manager'):
+                        button_cog.button_manager.stock_manager = None
+                    logger.info("✅ Button state dibersihkan")
+            except Exception as e:
+                logger.error(f"❌ Error membersihkan button state: {e}")
+            
+            # 4. Stop semua background tasks
+            try:
+                # Stop livestock update task
+                if livestock_cog and hasattr(livestock_cog, 'update_stock_task'):
+                    if livestock_cog.update_stock_task.is_running():
+                        livestock_cog.update_stock_task.cancel()
+                        logger.info("✅ Livestock update task dihentikan")
+                
+                # Stop button check task
+                if button_cog and hasattr(button_cog, 'check_display'):
+                    if button_cog.check_display.is_running():
+                        button_cog.check_display.cancel()
+                        logger.info("✅ Button check task dihentikan")
+                        
+            except Exception as e:
+                logger.error(f"❌ Error menghentikan background tasks: {e}")
+            
+            # 5. Bersihkan cache dari ext.cache_manager jika ada
+            try:
+                from src.ext.cache_manager import CacheManager as ExtCacheManager
+                ext_cache = ExtCacheManager()
+                await ext_cache.clear()
+                logger.info("✅ Extension cache dibersihkan")
+            except Exception as e:
+                logger.error(f"❌ Error membersihkan extension cache: {e}")
+            
+            logger.info("🎉 Pembersihan sebelum restart selesai")
+            
+        except Exception as e:
+            logger.error(f"❌ Error dalam pembersihan sebelum restart: {e}")
+
+async def setup(bot):
+    """Setup admin cog"""
+    try:
+        await bot.add_cog(AdminCog(bot))
+        logger.info("Admin cog loaded successfully")
+    except Exception as e:
+        logger.error(f"Failed to load admin cog: {e}")
+        raise
+
