@@ -266,6 +266,7 @@ class Stock:
 
 # Discord Colors
 class COLORS:
+    PRIMARY = discord.Color.blue()   # Added PRIMARY color
     SUCCESS = discord.Color.green()
     ERROR = discord.Color.red()
     WARNING = discord.Color.yellow()
