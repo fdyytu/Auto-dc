@@ -223,10 +223,10 @@ class LiveStockManager(BaseLockHandler):
                             stock_count = await self.cache_manager.get(stock_cache_key)
 
                             if stock_count is None:
-                                stock_response = await self.product_service.get_stock_count(product['code'])
+                                stock_response = await self.product_service.get_product_stock_count(product['code'])
                                 if not stock_response.success:
                                     continue
-                                stock_count = stock_response.data
+                                stock_count = stock_response.data['count']
                                 await self.cache_manager.set(
                                     stock_cache_key,
                                     stock_count,

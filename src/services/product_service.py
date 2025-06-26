@@ -224,6 +224,10 @@ class ProductService(BaseService):
         except Exception as e:
             return self._handle_exception(e, "mengambil jumlah stock")
     
+    async def get_stock_count(self, code: str) -> ServiceResponse:
+        """Alias untuk get_product_stock_count untuk backward compatibility"""
+        return await self.get_product_stock_count(code)
+    
     async def add_stock(self, product_code: str, content: str, added_by: str) -> ServiceResponse:
         """Tambah stock product"""
         try:
