@@ -116,8 +116,12 @@ class AdminStoreCog(AdminBaseCog):
             )
             
             if response.success:
+                data = response.data
                 success_msg = (f"Stock berhasil ditambahkan!\n"
                              f"Produk: {code.upper()}\n"
+                             f"Total baris: {data.get('total_lines', 1)}\n"
+                             f"Berhasil ditambahkan: {data.get('success_count', 1)}\n"
+                             f"Gagal: {data.get('failed_count', 0)}\n"
                              f"Ditambahkan oleh: {ctx.author.mention}")
                 embed = message_formatter.success_embed(success_msg)
                 

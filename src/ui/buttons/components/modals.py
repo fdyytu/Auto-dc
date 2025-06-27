@@ -52,7 +52,7 @@ class QuantityModal(Modal):
             # Initialize services
             product_service = ProductService(interaction.client.db_manager)
             balance_service = BalanceService(interaction.client.db_manager)
-            trx_manager = TransactionService(interaction.client.db_manager)
+            trx_manager = TransactionService(interaction.client)
 
             # Get product details
             product_response = await product_service.get_product(self.product_code)
@@ -283,7 +283,7 @@ class BuyModal(Modal):
             # Initialize services
             product_service = ProductService(interaction.client.db_manager)
             balance_service = BalanceService(interaction.client.db_manager)
-            trx_manager = TransactionService(interaction.client.db_manager)
+            trx_manager = TransactionService(interaction.client)
 
             # Get product details
             product_response = await product_service.get_product(product_code)
@@ -380,7 +380,7 @@ class BuyModal(Modal):
             self.logger.error(f"[BUY_MODAL] Unexpected error for user {interaction.user.id}: {str(e)}")
             error_embed = discord.Embed(
                 title="❌ Error",
-                description=MESSAGES.ERROR['TRANSACTION_FAILED'],
+                description="Terjadi kesalahan saat memproses transaksi. Silakan coba lagi.",
                 color=COLORS.ERROR
             )
             await interaction.followup.send(embed=error_embed, ephemeral=True)
