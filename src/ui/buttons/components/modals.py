@@ -16,7 +16,7 @@ from typing import Optional
 from src.config.constants.bot_constants import MESSAGES, COLORS, NOTIFICATION_CHANNELS
 from src.services.product_service import ProductService
 from src.services.balance_service import BalanceManagerService as BalanceService
-from src.services.transaction_service import TransactionManager as TransactionService
+from src.services.transaction_service import TransactionManager as TransactionService, TransactionManager
 
 class QuantityModal(Modal):
     """Modal untuk input jumlah pembelian"""
@@ -52,7 +52,7 @@ class QuantityModal(Modal):
             # Initialize services
             product_service = ProductService(interaction.client.db_manager)
             balance_service = BalanceService(interaction.client.db_manager)
-            trx_manager = TransactionService(interaction.client)
+            trx_manager = TransactionManager(interaction.client)
 
             # Get product details
             product_response = await product_service.get_product(self.product_code)
@@ -283,7 +283,7 @@ class BuyModal(Modal):
             # Initialize services
             product_service = ProductService(interaction.client.db_manager)
             balance_service = BalanceService(interaction.client.db_manager)
-            trx_manager = TransactionService(interaction.client)
+            trx_manager = TransactionManager(interaction.client)
 
             # Get product details
             product_response = await product_service.get_product(product_code)
@@ -377,7 +377,7 @@ class BuyModal(Modal):
             )
             await interaction.followup.send(embed=error_embed, ephemeral=True)
         except Exception as e:
-            self.logger.error(f"[BUY_MODAL] Unexpected error for user {interaction.user.id}: {str(e)}")
+            self.logger.error(f"[BUY_MODAL] Unexpected error for user {interaction.user.id}: {e}")
             error_embed = discord.Embed(
                 title="❌ Error",
                 description="Terjadi kesalahan saat memproses transaksi. Silakan coba lagi.",

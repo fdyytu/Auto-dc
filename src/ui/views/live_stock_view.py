@@ -49,7 +49,7 @@ class LiveStockManager(BaseLockHandler):
             # Initialize services
             self.product_service = ProductService(bot.db_manager)
             self.balance_service = BalanceService(bot.db_manager)
-            self.trx_manager = TransactionService(bot.db_manager)
+            self.trx_manager = TransactionService(bot)
             self.admin_service = AdminService(bot)
 
             # Channel configuration

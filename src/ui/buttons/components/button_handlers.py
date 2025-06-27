@@ -118,7 +118,7 @@ class BaseButtonHandler:
         self.logger = logging.getLogger(self.__class__.__name__)
         self.balance_service = BalanceService(bot.db_manager)
         self.product_service = ProductService(bot.db_manager)
-        self.trx_manager = TransactionService(bot.db_manager)
+        self.trx_manager = TransactionService(bot)
         self.admin_service = AdminService(bot.db_manager)
         self.cache_manager = CacheManager()
         self.stats = ButtonStatistics()
