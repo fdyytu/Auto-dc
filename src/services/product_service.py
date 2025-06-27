@@ -229,7 +229,7 @@ class ProductService(BaseService):
         return await self.get_product_stock_count(code)
     
     async def add_stock(self, product_code: str, content: str, added_by: str) -> ServiceResponse:
-        """Tambah stock product"""
+        """Tambah stock product - setiap baris baru dihitung sebagai 1 stock"""
         try:
             # Cek apakah product ada
             product_response = await self.get_product(product_code)
@@ -249,33 +249,62 @@ class ProductService(BaseService):
                     message="Informasi penambah stock harus diisi"
                 )
             
-            # Buat stock baru
-            stock = Stock(
-                product_code=product_code,
-                content=content.strip(),
-                added_by=added_by.strip(),
-                status=StockStatus.AVAILABLE
-            )
+            # Split content berdasarkan baris baru dan filter baris kosong
+            lines = [line.strip() for line in content.strip().split('\n') if line.strip()]
             
+            if not lines:
+                return ServiceResponse.error_response(
+                    error="Tidak ada stock valid yang ditemukan",
+                    message="Content harus berisi minimal satu baris stock yang valid"
+                )
+            
+            # Siapkan query untuk batch insert
             query = """
                 INSERT INTO stock (product_code, content, status, added_by, added_at, updated_at) 
                 VALUES (?, ?, ?, ?, ?, ?)
             """
-            params = (
-                stock.product_code, stock.content, stock.status.value, stock.added_by,
-                stock.added_at.isoformat(), stock.updated_at.isoformat()
-            )
             
-            success = await self.db.execute_update(query, params)
-            if not success:
+            # Buat stock entries untuk setiap baris
+            stock_entries = []
+            params_list = []
+            
+            for line in lines:
+                stock = Stock(
+                    product_code=product_code,
+                    content=line,
+                    added_by=added_by.strip(),
+                    status=StockStatus.AVAILABLE
+                )
+                stock_entries.append(stock)
+                
+                params = (
+                    stock.product_code, stock.content, stock.status.value, stock.added_by,
+                    stock.added_at.isoformat(), stock.updated_at.isoformat()
+                )
+                params_list.append(params)
+            
+            # Execute batch insert
+            success_count = 0
+            for params in params_list:
+                success = await self.db.execute_update(query, params)
+                if success:
+                    success_count += 1
+            
+            if success_count == 0:
                 return ServiceResponse.error_response(
                     error="Gagal menambah stock",
                     message="Gagal menyimpan stock ke database"
                 )
             
+            # Return summary
             return ServiceResponse.success_response(
-                data=stock.to_dict(),
-                message=f"Stock untuk product {product_code} berhasil ditambahkan"
+                data={
+                    "total_lines": len(lines),
+                    "success_count": success_count,
+                    "failed_count": len(lines) - success_count,
+                    "stock_entries": [stock.to_dict() for stock in stock_entries[:success_count]]
+                },
+                message=f"Berhasil menambahkan {success_count} stock dari {len(lines)} baris untuk product {product_code}"
             )
             
         except Exception as e:
