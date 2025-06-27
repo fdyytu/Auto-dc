@@ -1,123 +1,91 @@
+#!/usr/bin/env python3
 """
-Test sederhana untuk memverifikasi perbaikan error transaction
+Test sederhana untuk memverifikasi perbaikan di modals.py
 """
 
-import ast
-import os
+import re
 
-def test_product_service_has_update_stock_status():
-    """Test apakah method update_stock_status sudah ditambahkan ke ProductService"""
-    
-    print("🔍 Checking ProductService for update_stock_status method...")
-    
-    product_service_path = "src/services/product_service.py"
-    
-    if not os.path.exists(product_service_path):
-        print(f"❌ File {product_service_path} tidak ditemukan")
-        return False
-    
-    with open(product_service_path, 'r', encoding='utf-8') as f:
-        content = f.read()
-    
-    # Check if update_stock_status method exists
-    if 'def update_stock_status(' in content:
-        print("✅ Method 'update_stock_status' ditemukan di ProductService")
+def test_modals_fix():
+    """Test apakah perbaikan di modals.py sudah benar"""
+    try:
+        with open('/home/user/workspace/src/ui/buttons/components/modals.py', 'r') as f:
+            content = f.read()
         
-        # Check if it has proper parameters
-        if 'product_code: str, stock_ids: List[int], status: str, buyer_id: str = None' in content:
-            print("✅ Method memiliki parameter yang benar")
-        else:
-            print("⚠️ Method ditemukan tapi parameter mungkin tidak sesuai")
+        # Cari semua instance BalanceService initialization
+        balance_service_patterns = re.findall(r'balance_service = BalanceService\((.*?)\)', content)
         
-        return True
-    else:
-        print("❌ Method 'update_stock_status' TIDAK ditemukan di ProductService")
-        return False
-
-def test_transaction_service_calls():
-    """Test apakah TransactionService masih memanggil method yang benar"""
-    
-    print("\n🔍 Checking TransactionService calls...")
-    
-    transaction_service_path = "src/services/transaction_service.py"
-    
-    if not os.path.exists(transaction_service_path):
-        print(f"❌ File {transaction_service_path} tidak ditemukan")
-        return False
-    
-    with open(transaction_service_path, 'r', encoding='utf-8') as f:
-        content = f.read()
-    
-    # Check if it calls update_stock_status
-    if 'update_stock_status(' in content:
-        print("✅ TransactionService memanggil update_stock_status")
-        return True
-    else:
-        print("❌ TransactionService TIDAK memanggil update_stock_status")
-        return False
-
-def test_modals_imports():
-    """Test apakah modals.py memiliki import yang benar"""
-    
-    print("\n🔍 Checking modals.py imports...")
-    
-    modals_path = "src/ui/buttons/components/modals.py"
-    
-    if not os.path.exists(modals_path):
-        print(f"❌ File {modals_path} tidak ditemukan")
-        return False
-    
-    with open(modals_path, 'r', encoding='utf-8') as f:
-        content = f.read()
-    
-    # Check imports
-    if 'from src.config.constants.bot_constants import MESSAGES, COLORS' in content:
-        print("✅ Import MESSAGES dan COLORS sudah benar")
+        print("🔍 Memeriksa inisialisasi BalanceService di modals.py...")
+        print("=" * 60)
         
-        # Check usage
-        if 'MESSAGES.ERROR[' in content and 'COLORS.ERROR' in content:
-            print("✅ Penggunaan MESSAGES.ERROR dan COLORS.ERROR sudah benar")
+        correct_count = 0
+        total_count = len(balance_service_patterns)
+        
+        for i, pattern in enumerate(balance_service_patterns, 1):
+            print(f"Instance {i}: BalanceService({pattern})")
+            if pattern.strip() == 'interaction.client':
+                print("  ✅ BENAR - menggunakan interaction.client")
+                correct_count += 1
+            elif 'interaction.client.db_manager' in pattern:
+                print("  ❌ SALAH - masih menggunakan interaction.client.db_manager")
+            else:
+                print(f"  ⚠️  TIDAK DIKENAL - pattern: {pattern}")
+        
+        print("=" * 60)
+        print(f"Total instance: {total_count}")
+        print(f"Instance yang benar: {correct_count}")
+        print(f"Instance yang salah: {total_count - correct_count}")
+        
+        if correct_count == total_count and total_count > 0:
+            print("🎉 SEMUA PERBAIKAN BERHASIL!")
             return True
         else:
-            print("⚠️ Import benar tapi penggunaan mungkin ada masalah")
-            return True
-    else:
-        print("❌ Import MESSAGES dan COLORS tidak ditemukan atau salah")
+            print("❌ MASIH ADA YANG PERLU DIPERBAIKI!")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error saat membaca file: {e}")
         return False
 
-def main():
-    """Main test function"""
-    print("🚀 Memulai test sederhana perbaikan error transaction...")
-    print("=" * 60)
-    
-    success = True
-    
-    # Test 1: ProductService update_stock_status method
-    if not test_product_service_has_update_stock_status():
-        success = False
-    
-    # Test 2: TransactionService calls
-    if not test_transaction_service_calls():
-        success = False
-    
-    # Test 3: Modals imports
-    if not test_modals_imports():
-        success = False
-    
-    print("\n" + "=" * 60)
-    if success:
-        print("🎉 SEMUA TEST BERHASIL!")
-        print("\n📋 Ringkasan perbaikan yang telah dilakukan:")
-        print("   ✅ Method update_stock_status ditambahkan ke ProductService")
-        print("   ✅ TransactionService dapat memanggil method yang diperlukan")
-        print("   ✅ Import di modals.py sudah benar")
-        print("\n🔧 Error yang diperbaiki:")
-        print("   ✅ 'ProductService' object has no attribute 'update_stock_status'")
-        print("   ✅ 'dict' object has no attribute 'ERROR' (import sudah benar)")
-    else:
-        print("❌ ADA TEST YANG GAGAL! Masih ada masalah yang perlu diperbaiki.")
-    
-    return success
+def test_import_statement():
+    """Test apakah import statement sudah benar"""
+    try:
+        with open('/home/user/workspace/src/ui/buttons/components/modals.py', 'r') as f:
+            content = f.read()
+        
+        print("\n🔍 Memeriksa import statement...")
+        print("=" * 60)
+        
+        # Cari import statement
+        import_pattern = re.search(r'from src\.services\.balance_service import.*', content)
+        if import_pattern:
+            print(f"Import statement: {import_pattern.group()}")
+            if 'BalanceManagerService as BalanceService' in import_pattern.group():
+                print("✅ Import statement sudah benar")
+                return True
+            else:
+                print("❌ Import statement perlu diperbaiki")
+                return False
+        else:
+            print("❌ Import statement tidak ditemukan")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error saat memeriksa import: {e}")
+        return False
 
 if __name__ == "__main__":
-    main()
+    print("🔧 Testing perbaikan BalanceService di modals.py...")
+    
+    test1_passed = test_modals_fix()
+    test2_passed = test_import_statement()
+    
+    print("\n" + "=" * 60)
+    if test1_passed and test2_passed:
+        print("🎉 SEMUA TEST BERHASIL! Perbaikan sudah benar.")
+        print("\n📋 Ringkasan perbaikan:")
+        print("- ✅ BalanceService diinisialisasi dengan interaction.client")
+        print("- ✅ Import statement menggunakan alias yang benar")
+        print("- ✅ Tidak ada lagi penggunaan interaction.client.db_manager")
+        print("\n🚀 Error 'dict' object has no attribute 'SUCCESS'/'ERROR' seharusnya sudah teratasi!")
+    else:
+        print("❌ ADA TEST YANG GAGAL. Perlu perbaikan lebih lanjut.")
