@@ -16,7 +16,9 @@ class MESSAGES:
         'STOCK_ADDED': "✅ Stock berhasil ditambahkan!\n**Produk:** {product_code}\n**Jumlah ditambah:** {quantity}\n**Total stock:** {total_stock}",
         'PRODUCT_CREATED': "✅ Produk berhasil dibuat!\n**Kode:** {product_code}\n**Nama:** {product_name}\n**Harga:** {price}",
         'REGISTRATION_SUCCESS': "✅ **Registrasi Berhasil!**\n\nSelamat datang di toko kami! Anda sekarang dapat melakukan pembelian.",
-        'DONATION_SUCCESS': "✅ **Donasi Berhasil!**\n\n**Jumlah:** {amount}\n**Dari:** {donor}\n\nTerima kasih atas dukungan Anda!"
+        'DONATION_SUCCESS': "✅ **Donasi Berhasil!**\n\n**Jumlah:** {amount}\n**Dari:** {donor}\n\nTerima kasih atas dukungan Anda!",
+        'PURCHASE': "✅ **Pembelian Berhasil!**\n\nTerima kasih atas pembelian Anda!",
+        'BALANCE_UPDATE': "✅ **Balance Berhasil Diperbarui!**\n\nBalance Anda telah diperbarui."
     }
     
     # Error Messages
@@ -30,7 +32,10 @@ class MESSAGES:
         'TRANSACTION_FAILED': "❌ **Transaksi Gagal!**\n\n{reason}\n\nSilakan coba lagi atau hubungi admin jika masalah berlanjut.",
         'MAINTENANCE_MODE': "🔧 **Mode Maintenance**\n\nSistem sedang dalam pemeliharaan.\nSilakan coba lagi nanti.",
         'PERMISSION_DENIED': "❌ **Akses Ditolak!**\n\nAnda tidak memiliki izin untuk melakukan tindakan ini.",
-        'RATE_LIMITED': "⏰ **Terlalu Cepat!**\n\nSilakan tunggu {cooldown} detik sebelum mencoba lagi."
+        'RATE_LIMITED': "⏰ **Terlalu Cepat!**\n\nSilakan tunggu {cooldown} detik sebelum mencoba lagi.",
+        'LOCK_ACQUISITION_FAILED': "❌ **Sistem Sibuk!**\n\nSistem sedang memproses transaksi lain. Silakan coba lagi dalam beberapa detik.",
+        'DATABASE_ERROR': "❌ **Error Database!**\n\nTerjadi kesalahan pada database. Silakan coba lagi atau hubungi admin.",
+        'NO_HISTORY': "❌ **Tidak Ada Riwayat!**\n\nBelum ada riwayat transaksi untuk ditampilkan."
     }
     
     # Info Messages
