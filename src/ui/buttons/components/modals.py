@@ -51,7 +51,7 @@ class QuantityModal(Modal):
 
             # Initialize services
             product_service = ProductService(interaction.client.db_manager)
-            balance_service = BalanceService(interaction.client.db_manager)
+            balance_service = BalanceService(interaction.client)
             trx_manager = TransactionManager(interaction.client)
 
             # Get product details
@@ -282,7 +282,7 @@ class BuyModal(Modal):
 
             # Initialize services
             product_service = ProductService(interaction.client.db_manager)
-            balance_service = BalanceService(interaction.client.db_manager)
+            balance_service = BalanceService(interaction.client)
             trx_manager = TransactionManager(interaction.client)
 
             # Get product details
@@ -502,7 +502,7 @@ class RegisterModal(Modal):
         
         await interaction.response.defer(ephemeral=True)
         try:
-            balance_service = BalanceService(interaction.client.db_manager)
+            balance_service = BalanceService(interaction.client)
             
             growid = str(self.growid.value).strip()
             self.logger.info(f"[REGISTER_MODAL] Processing registration for user {interaction.user.id} with GrowID: {growid}")
