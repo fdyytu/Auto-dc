@@ -387,6 +387,62 @@ class ProductService(BaseService):
         except Exception as e:
             return self._handle_exception(e, "menandai stock sebagai terjual")
     
+    async def update_stock_status(self, product_code: str, stock_ids: List[int], status: str, buyer_id: str = None) -> ServiceResponse:
+        """Update status multiple stock items"""
+        try:
+            if not stock_ids:
+                return ServiceResponse.error_response(
+                    error="Tidak ada stock ID yang diberikan",
+                    message="Daftar stock ID tidak boleh kosong"
+                )
+            
+            # Validasi status
+            valid_statuses = [status.value for status in StockStatus]
+            if status not in valid_statuses:
+                return ServiceResponse.error_response(
+                    error="Status tidak valid",
+                    message=f"Status harus salah satu dari: {', '.join(valid_statuses)}"
+                )
+            
+            from datetime import datetime
+            updated_at = datetime.utcnow().isoformat()
+            
+            # Update semua stock sekaligus
+            placeholders = ','.join(['?' for _ in stock_ids])
+            query = f"""
+                UPDATE stock 
+                SET status = ?, buyer_id = ?, updated_at = ? 
+                WHERE id IN ({placeholders}) AND product_code = ?
+            """
+            
+            params = [status, buyer_id, updated_at] + stock_ids + [product_code]
+            success = await self.db.execute_update(query, params)
+            
+            if not success:
+                return ServiceResponse.error_response(
+                    error="Gagal update status stock",
+                    message="Gagal mengupdate status stock di database"
+                )
+            
+            # Ambil data stock yang sudah diupdate untuk verifikasi
+            updated_query = f"SELECT * FROM stock WHERE id IN ({placeholders})"
+            updated_result = await self.db.execute_query(updated_query, stock_ids)
+            
+            updated_stocks = []
+            if updated_result:
+                for row in updated_result:
+                    stock_data = dict(row)
+                    stock = Stock.from_dict(stock_data)
+                    updated_stocks.append(stock.to_dict())
+            
+            return ServiceResponse.success_response(
+                data=updated_stocks,
+                message=f"Berhasil mengupdate status {len(stock_ids)} stock menjadi {status}"
+            )
+            
+        except Exception as e:
+            return self._handle_exception(e, "mengupdate status stock")
+
     async def get_product_with_stock_info(self, code: str) -> ServiceResponse:
         """Ambil product beserta informasi stock"""
         try:
