@@ -511,6 +511,8 @@ class NOTIFICATION_CHANNELS:
     ADMIN_LOGS = 1348580745433710625
     ERROR_LOGS = 1348581120723128390
     SHOP = 1319281983796547595
+    HISTORY_BUY = 1348580531519881246  # Channel untuk history pembelian
+    BUY_LOG = 1348580616647610399      # Channel untuk log pembelian
 
     @classmethod
     def get(cls, channel_type: str, default=None):

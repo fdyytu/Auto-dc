@@ -9,9 +9,11 @@ Komponen modal yang dipisahkan dari live_buttons.py
 import discord
 from discord.ui import Modal, TextInput
 import logging
+import io
+from datetime import datetime
 from typing import Optional
 
-from src.config.constants.bot_constants import MESSAGES, COLORS
+from src.config.constants.bot_constants import MESSAGES, COLORS, NOTIFICATION_CHANNELS
 from src.services.product_service import ProductService
 from src.services.balance_service import BalanceManagerService as BalanceService
 from src.services.transaction_service import TransactionManager as TransactionService
@@ -88,19 +90,27 @@ class QuantityModal(Modal):
 
             # Process purchase
             purchase_response = await trx_manager.process_purchase(
-                growid=growid,
+                buyer_id=str(interaction.user.id),
                 product_code=self.product_code,
-                quantity=quantity,
-                price=total_price
+                quantity=quantity
             )
 
             if not purchase_response.success:
                 raise ValueError(purchase_response.error)
 
+            # Get purchased items content
+            purchased_items = purchase_response.data.get('content', [])
+            
+            # Create and send file via DM
+            await self._send_items_via_dm(interaction, purchased_items, product, quantity, total_price)
+            
+            # Log to channels
+            await self._log_purchase_to_channels(interaction, product, quantity, total_price, growid)
+
             # Create success embed
             success_embed = discord.Embed(
                 title="✅ Pembelian Berhasil",
-                description=f"Berhasil membeli {quantity}x {product['name']}\nTotal: {total_price:,.0f} WL",
+                description=f"Berhasil membeli {quantity}x {product['name']}\nTotal: {total_price:,.0f} WL\n\n📩 **Item telah dikirim via DM!**",
                 color=COLORS.SUCCESS
             )
             success_embed.add_field(
@@ -133,6 +143,101 @@ class QuantityModal(Modal):
                 color=COLORS.ERROR
             )
             await interaction.followup.send(embed=error_embed, ephemeral=True)
+
+    async def _send_items_via_dm(self, interaction: discord.Interaction, items: list, product: dict, quantity: int, total_price: float):
+        """Send purchased items via DM as .txt file"""
+        try:
+            if not items:
+                self.logger.warning(f"No items to send for user {interaction.user.id}")
+                return
+
+            # Create file content
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            file_content = f"=== PEMBELIAN BERHASIL ===\n"
+            file_content += f"Tanggal: {timestamp}\n"
+            file_content += f"Produk: {product['name']} ({self.product_code})\n"
+            file_content += f"Jumlah: {quantity}x\n"
+            file_content += f"Total Harga: {total_price:,.0f} WL\n"
+            file_content += f"Pembeli: {interaction.user.name} ({interaction.user.id})\n\n"
+            file_content += "=== ITEM YANG DIBELI ===\n"
+            
+            for i, item in enumerate(items, 1):
+                file_content += f"{i}. {item}\n"
+
+            # Create file
+            file_buffer = io.StringIO(file_content)
+            file = discord.File(
+                io.BytesIO(file_buffer.getvalue().encode('utf-8')),
+                filename=f"{self.product_code}_{quantity}x_{timestamp.replace(':', '-').replace(' ', '_')}.txt"
+            )
+
+            # Send DM
+            try:
+                await interaction.user.send(
+                    content=f"🎉 **Pembelian Berhasil!**\n\nHalo {interaction.user.mention}! Berikut adalah item yang telah kamu beli:",
+                    file=file
+                )
+                self.logger.info(f"[QUANTITY_MODAL] Items sent via DM to user {interaction.user.id}")
+            except discord.Forbidden:
+                self.logger.warning(f"[QUANTITY_MODAL] Cannot send DM to user {interaction.user.id} - DMs disabled")
+                # Send notification in channel that DM failed
+                await interaction.followup.send(
+                    "⚠️ **Tidak dapat mengirim DM!**\nSilakan buka DM Anda untuk menerima item. Item akan dikirim ulang jika DM dibuka.",
+                    ephemeral=True
+                )
+
+        except Exception as e:
+            self.logger.error(f"[QUANTITY_MODAL] Error sending items via DM: {e}")
+
+    async def _log_purchase_to_channels(self, interaction: discord.Interaction, product: dict, quantity: int, total_price: float, growid: str):
+        """Log purchase to history and log channels"""
+        try:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Create log embed
+            log_embed = discord.Embed(
+                title="💰 Pembelian Baru",
+                color=COLORS.SUCCESS,
+                timestamp=datetime.now()
+            )
+            log_embed.add_field(
+                name="👤 Pembeli",
+                value=f"{interaction.user.mention}\n`{growid}`",
+                inline=True
+            )
+            log_embed.add_field(
+                name="📦 Produk",
+                value=f"**{product['name']}**\n`{self.product_code}`",
+                inline=True
+            )
+            log_embed.add_field(
+                name="💎 Detail",
+                value=f"Jumlah: {quantity}x\nTotal: {total_price:,.0f} WL",
+                inline=True
+            )
+            log_embed.set_footer(text=f"User ID: {interaction.user.id}")
+
+            # Send to history buy channel
+            try:
+                history_channel = interaction.client.get_channel(NOTIFICATION_CHANNELS.HISTORY_BUY)
+                if history_channel:
+                    await history_channel.send(embed=log_embed)
+                    self.logger.info(f"[QUANTITY_MODAL] Purchase logged to history channel")
+            except Exception as e:
+                self.logger.error(f"[QUANTITY_MODAL] Error logging to history channel: {e}")
+
+            # Send to buy log channel
+            try:
+                log_channel = interaction.client.get_channel(NOTIFICATION_CHANNELS.BUY_LOG)
+                if log_channel:
+                    log_message = f"`[{timestamp}]` **{interaction.user.name}** ({growid}) membeli {quantity}x **{product['name']}** ({self.product_code}) seharga {total_price:,.0f} WL"
+                    await log_channel.send(log_message)
+                    self.logger.info(f"[QUANTITY_MODAL] Purchase logged to buy log channel")
+            except Exception as e:
+                self.logger.error(f"[QUANTITY_MODAL] Error logging to buy log channel: {e}")
+
+        except Exception as e:
+            self.logger.error(f"[QUANTITY_MODAL] Error logging purchase: {e}")
 
 class BuyModal(Modal):
     """Modal untuk pembelian produk dengan input code dan quantity"""
@@ -217,19 +322,27 @@ class BuyModal(Modal):
 
             # Process purchase
             purchase_response = await trx_manager.process_purchase(
-                growid=growid,
+                buyer_id=str(interaction.user.id),
                 product_code=product_code,
-                quantity=quantity,
-                price=total_price
+                quantity=quantity
             )
 
             if not purchase_response.success:
                 raise ValueError(purchase_response.error)
 
+            # Get purchased items content
+            purchased_items = purchase_response.data.get('content', [])
+            
+            # Create and send file via DM
+            await self._send_items_via_dm(interaction, purchased_items, product, quantity, total_price, product_code)
+            
+            # Log to channels
+            await self._log_purchase_to_channels(interaction, product, quantity, total_price, growid, product_code)
+
             # Create success embed
             success_embed = discord.Embed(
                 title="✅ Pembelian Berhasil",
-                description=f"Berhasil membeli {quantity}x {product['name']}\nTotal: {total_price:,.0f} WL",
+                description=f"Berhasil membeli {quantity}x {product['name']}\nTotal: {total_price:,.0f} WL\n\n📩 **Item telah dikirim via DM!**",
                 color=COLORS.SUCCESS
             )
             success_embed.add_field(
@@ -271,6 +384,101 @@ class BuyModal(Modal):
                 color=COLORS.ERROR
             )
             await interaction.followup.send(embed=error_embed, ephemeral=True)
+
+    async def _send_items_via_dm(self, interaction: discord.Interaction, items: list, product: dict, quantity: int, total_price: float, product_code: str):
+        """Send purchased items via DM as .txt file"""
+        try:
+            if not items:
+                self.logger.warning(f"No items to send for user {interaction.user.id}")
+                return
+
+            # Create file content
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            file_content = f"=== PEMBELIAN BERHASIL ===\n"
+            file_content += f"Tanggal: {timestamp}\n"
+            file_content += f"Produk: {product['name']} ({product_code})\n"
+            file_content += f"Jumlah: {quantity}x\n"
+            file_content += f"Total Harga: {total_price:,.0f} WL\n"
+            file_content += f"Pembeli: {interaction.user.name} ({interaction.user.id})\n\n"
+            file_content += "=== ITEM YANG DIBELI ===\n"
+            
+            for i, item in enumerate(items, 1):
+                file_content += f"{i}. {item}\n"
+
+            # Create file
+            file_buffer = io.StringIO(file_content)
+            file = discord.File(
+                io.BytesIO(file_buffer.getvalue().encode('utf-8')),
+                filename=f"{product_code}_{quantity}x_{timestamp.replace(':', '-').replace(' ', '_')}.txt"
+            )
+
+            # Send DM
+            try:
+                await interaction.user.send(
+                    content=f"🎉 **Pembelian Berhasil!**\n\nHalo {interaction.user.mention}! Berikut adalah item yang telah kamu beli:",
+                    file=file
+                )
+                self.logger.info(f"[BUY_MODAL] Items sent via DM to user {interaction.user.id}")
+            except discord.Forbidden:
+                self.logger.warning(f"[BUY_MODAL] Cannot send DM to user {interaction.user.id} - DMs disabled")
+                # Send notification in channel that DM failed
+                await interaction.followup.send(
+                    "⚠️ **Tidak dapat mengirim DM!**\nSilakan buka DM Anda untuk menerima item. Item akan dikirim ulang jika DM dibuka.",
+                    ephemeral=True
+                )
+
+        except Exception as e:
+            self.logger.error(f"[BUY_MODAL] Error sending items via DM: {e}")
+
+    async def _log_purchase_to_channels(self, interaction: discord.Interaction, product: dict, quantity: int, total_price: float, growid: str, product_code: str):
+        """Log purchase to history and log channels"""
+        try:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Create log embed
+            log_embed = discord.Embed(
+                title="💰 Pembelian Baru",
+                color=COLORS.SUCCESS,
+                timestamp=datetime.now()
+            )
+            log_embed.add_field(
+                name="👤 Pembeli",
+                value=f"{interaction.user.mention}\n`{growid}`",
+                inline=True
+            )
+            log_embed.add_field(
+                name="📦 Produk",
+                value=f"**{product['name']}**\n`{product_code}`",
+                inline=True
+            )
+            log_embed.add_field(
+                name="💎 Detail",
+                value=f"Jumlah: {quantity}x\nTotal: {total_price:,.0f} WL",
+                inline=True
+            )
+            log_embed.set_footer(text=f"User ID: {interaction.user.id}")
+
+            # Send to history buy channel
+            try:
+                history_channel = interaction.client.get_channel(NOTIFICATION_CHANNELS.HISTORY_BUY)
+                if history_channel:
+                    await history_channel.send(embed=log_embed)
+                    self.logger.info(f"[BUY_MODAL] Purchase logged to history channel")
+            except Exception as e:
+                self.logger.error(f"[BUY_MODAL] Error logging to history channel: {e}")
+
+            # Send to buy log channel
+            try:
+                log_channel = interaction.client.get_channel(NOTIFICATION_CHANNELS.BUY_LOG)
+                if log_channel:
+                    log_message = f"`[{timestamp}]` **{interaction.user.name}** ({growid}) membeli {quantity}x **{product['name']}** ({product_code}) seharga {total_price:,.0f} WL"
+                    await log_channel.send(log_message)
+                    self.logger.info(f"[BUY_MODAL] Purchase logged to buy log channel")
+            except Exception as e:
+                self.logger.error(f"[BUY_MODAL] Error logging to buy log channel: {e}")
+
+        except Exception as e:
+            self.logger.error(f"[BUY_MODAL] Error logging purchase: {e}")
 
 class RegisterModal(Modal):
     """Modal untuk registrasi GrowID"""
