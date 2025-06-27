@@ -29,34 +29,9 @@ from src.services.cache_service import CacheManager
 from src.services.product_service import ProductService
 from src.services.balance_service import BalanceManagerService
 from src.services.base_service import ServiceResponse
-
-# Constants sementara - perlu dipindah ke file constants yang proper
-MESSAGES = {
-    'SUCCESS': {
-        'BALANCE_UPDATE': 'Balance berhasil diupdate',
-        'TRANSACTION_SUCCESS': 'Transaksi berhasil'
-    },
-    'ERROR': {
-        'PRODUCT_NOT_FOUND': 'Product tidak ditemukan',
-        'DATABASE_ERROR': 'Terjadi kesalahan database',
-        'TRANSACTION_FAILED': 'Transaksi gagal',
-        'INSUFFICIENT_BALANCE': 'Balance tidak mencukupi',
-        'NO_HISTORY': 'Tidak ada riwayat transaksi'
-    }
-}
-
-CACHE_TIMEOUT = {
-    'SHORT': 300,  # 5 minutes
-    'MEDIUM': 1800,  # 30 minutes
-    'LONG': 3600,  # 1 hour
-    'get_seconds': lambda self, timeout: timeout
-}
-
-COLORS = {
-    'SUCCESS': 0x00ff00,
-    'ERROR': 0xff0000,
-    'WARNING': 0xffff00
-}
+from src.config.constants.messages import MESSAGES
+from src.config.constants.colors import COLORS
+from src.config.constants.timeouts import CACHE_TIMEOUT
 
 class TransactionCallbackManager:
     """Callback manager untuk transaction service"""
