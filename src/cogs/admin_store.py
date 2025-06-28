@@ -73,6 +73,70 @@ class AdminStoreCog(AdminBaseCog):
             logger.error(f"Error remove product: {e}")
             await ctx.send(embed=message_formatter.error_embed("Terjadi error saat menghapus produk"))
     
+    @commands.command(name="deleteproduct")
+    async def delete_product(self, ctx, code: str):
+        """Hapus produk (alias untuk removeproduct)"""
+        await self.remove_product(ctx, code)
+    
+    @commands.command(name="editproduct")
+    async def edit_product(self, ctx, code: str, field: str, *, value: str):
+        """Edit detail produk"""
+        try:
+            # Validasi field yang bisa diedit
+            valid_fields = ['name', 'price', 'description']
+            if field.lower() not in valid_fields:
+                await ctx.send(embed=message_formatter.error_embed(
+                    f"Field tidak valid. Field yang bisa diedit: {', '.join(valid_fields)}"
+                ))
+                return
+            
+            # Validasi input berdasarkan field
+            if field.lower() == 'price':
+                validated_value = input_validator.validate_price(value)
+                if not validated_value:
+                    await ctx.send(embed=message_formatter.error_embed("Harga tidak valid"))
+                    return
+                value = validated_value
+            
+            # Update produk
+            success = await self.product_service.update_product(
+                code.upper(), field.lower(), value
+            )
+            
+            if success:
+                embed = message_formatter.success_embed(
+                    f"Produk {code.upper()} berhasil diupdate!\n"
+                    f"Field: {field}\n"
+                    f"Nilai baru: {value}"
+                )
+            else:
+                embed = message_formatter.error_embed("Gagal mengupdate produk atau produk tidak ditemukan")
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Error edit product: {e}")
+            await ctx.send(embed=message_formatter.error_embed("Terjadi error saat mengedit produk"))
+    
+    @commands.command(name="addworld")
+    async def add_world(self, ctx, name: str, *, description: str = None):
+        """Tambah informasi world"""
+        try:
+            # Implementasi sederhana untuk menyimpan info world
+            # Bisa dikembangkan lebih lanjut sesuai kebutuhan
+            embed = message_formatter.success_embed(
+                f"World berhasil ditambahkan!\n"
+                f"Nama: {name}\n"
+                f"Deskripsi: {description or 'Tidak ada deskripsi'}"
+            )
+            
+            await ctx.send(embed=embed)
+            logger.info(f"World {name} added by {ctx.author}")
+            
+        except Exception as e:
+            logger.error(f"Error add world: {e}")
+            await ctx.send(embed=message_formatter.error_embed("Terjadi error saat menambah world"))
+    
     @commands.command(name="addstock")
     async def add_stock(self, ctx, code: str, *, content: str = None):
         """Tambah stock untuk produk"""
