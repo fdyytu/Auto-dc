@@ -443,6 +443,70 @@ class ProductService(BaseService):
         except Exception as e:
             return self._handle_exception(e, "mengupdate status stock")
 
+    async def get_stock_history(self, code: str, limit: int = 10) -> ServiceResponse:
+        """Ambil history stock produk"""
+        try:
+            # Validasi input
+            if not code or not code.strip():
+                return ServiceResponse.error_response(
+                    error="Code product tidak boleh kosong",
+                    message="Code product harus diisi"
+                )
+            
+            if limit < 1 or limit > 100:
+                return ServiceResponse.error_response(
+                    error="Limit tidak valid",
+                    message="Limit harus antara 1-100"
+                )
+            
+            # Query untuk mengambil history stock
+            query = """
+                SELECT 
+                    s.id,
+                    s.product_code,
+                    s.status,
+                    s.buyer_id,
+                    s.created_at,
+                    s.updated_at,
+                    'stock_added' as action,
+                    1 as quantity,
+                    'system' as admin
+                FROM stock s
+                WHERE s.product_code = ?
+                ORDER BY s.created_at DESC
+                LIMIT ?
+            """
+            
+            result = await self.db.execute_query(query, (code.upper(), limit))
+            
+            if not result:
+                return ServiceResponse.success_response(
+                    data=[],
+                    message=f"Tidak ada history stock untuk product {code.upper()}"
+                )
+            
+            # Format data history
+            history_data = []
+            for row in result:
+                row_dict = dict(row)
+                history_item = {
+                    'action': row_dict.get('action', 'stock_added'),
+                    'quantity': row_dict.get('quantity', 1),
+                    'admin': row_dict.get('admin', 'system'),
+                    'timestamp': row_dict.get('created_at', ''),
+                    'status': row_dict.get('status', 'available'),
+                    'stock_id': row_dict.get('id', 0)
+                }
+                history_data.append(history_item)
+            
+            return ServiceResponse.success_response(
+                data=history_data,
+                message=f"Berhasil mengambil {len(history_data)} history stock untuk {code.upper()}"
+            )
+            
+        except Exception as e:
+            return self._handle_exception(e, "mengambil history stock")
+
     async def get_product_with_stock_info(self, code: str) -> ServiceResponse:
         """Ambil product beserta informasi stock"""
         try:
