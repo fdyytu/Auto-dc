@@ -123,17 +123,17 @@ class AdminBalanceCog(AdminBaseCog):
                 )
                 embed.add_field(
                     name="World Locks (WL)",
-                    value=f"{balance_data.get('wl', 0):,}",
+                    value=f"{balance_data.wl:,}",
                     inline=True
                 )
                 embed.add_field(
                     name="Diamond Locks (DL)",
-                    value=f"{balance_data.get('dl', 0):,}",
+                    value=f"{balance_data.dl:,}",
                     inline=True
                 )
                 embed.add_field(
                     name="Blue Gem Locks (BGL)",
-                    value=f"{balance_data.get('bgl', 0):,}",
+                    value=f"{balance_data.bgl:,}",
                     inline=True
                 )
             else:
