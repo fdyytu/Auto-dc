@@ -16,7 +16,8 @@ async def setup(bot):
             'src.cogs.admin_base',
             'src.cogs.admin_store', 
             'src.cogs.admin_balance',
-            'src.cogs.admin_system'
+            'src.cogs.admin_system',
+            'src.cogs.admin_transaction'
         ]
         
         for cog in admin_cogs:
