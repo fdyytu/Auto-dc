@@ -303,32 +303,50 @@ class BalanceManagerService(BaseLockHandler):
             
             conn.execute("BEGIN TRANSACTION")
             
-            # Update user_growid table
+            # First, get current balance data
+            cursor.execute(
+                "SELECT balance_wl, balance_dl, balance_bgl FROM users WHERE growid = ? COLLATE binary",
+                (old_growid,)
+            )
+            balance_data = cursor.fetchone()
+            
+            if balance_data:
+                # Create new user entry with current balance
+                cursor.execute(
+                    """
+                    INSERT OR REPLACE INTO users (growid, balance_wl, balance_dl, balance_bgl) 
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (new_growid, balance_data['balance_wl'], balance_data['balance_dl'], balance_data['balance_bgl'])
+                )
+            else:
+                # Create new user entry with default balance
+                cursor.execute(
+                    """
+                    INSERT OR REPLACE INTO users (growid, balance_wl, balance_dl, balance_bgl) 
+                    VALUES (?, 0, 0, 0)
+                    """,
+                    (new_growid,)
+                )
+            
+            # Update user_growid table (this should work now since new_growid exists in users table)
             cursor.execute(
                 "UPDATE user_growid SET growid = ? WHERE discord_id = ?",
                 (new_growid, str(discord_id))
             )
             
-            # Create new user entry if doesn't exist, or update existing
+            # Copy balance transactions to new growid if needed
             cursor.execute(
-                """
-                INSERT OR IGNORE INTO users (growid, balance_wl, balance_dl, balance_bgl) 
-                SELECT ?, balance_wl, balance_dl, balance_bgl FROM users WHERE growid = ?
-                """,
+                "UPDATE balance_transactions SET growid = ? WHERE growid = ?",
                 (new_growid, old_growid)
             )
             
-            # If user data exists for old growid, copy it to new growid
-            cursor.execute(
-                """
-                UPDATE users SET 
-                    balance_wl = (SELECT balance_wl FROM users WHERE growid = ?),
-                    balance_dl = (SELECT balance_dl FROM users WHERE growid = ?),
-                    balance_bgl = (SELECT balance_bgl FROM users WHERE growid = ?)
-                WHERE growid = ?
-                """,
-                (old_growid, old_growid, old_growid, new_growid)
-            )
+            # Remove old user entry if it exists and is different from new one
+            if old_growid != new_growid:
+                cursor.execute(
+                    "DELETE FROM users WHERE growid = ? COLLATE binary",
+                    (old_growid,)
+                )
             
             conn.commit()
             

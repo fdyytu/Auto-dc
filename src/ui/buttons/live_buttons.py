@@ -19,6 +19,7 @@ from discord.ext import commands, tasks
 from discord import ui
 import logging
 import asyncio
+import re
 from datetime import datetime
 from typing import List, Dict, Optional, Union
 from discord.ui import Select, Button, View
@@ -295,9 +296,33 @@ class ShopView(View):
         
         for i, trx in enumerate(transactions[:10], 1):
             trx_type = "🛒 Pembelian" if trx['type'] == 'purchase' else "💰 Deposit"
+            
+            # Extract amount from details or use balance difference
+            amount_text = "N/A"
+            try:
+                if trx.get('details'):
+                    # Try to extract amount from details
+                    details = trx['details']
+                    if 'WL' in details:
+                        # Extract number before WL
+                        match = re.search(r'(\d+(?:,\d+)*)\s*WL', details)
+                        if match:
+                            amount_text = f"{match.group(1)} WL"
+                        else:
+                            amount_text = details
+                    else:
+                        amount_text = details
+                elif trx.get('old_balance') and trx.get('new_balance'):
+                    # Calculate difference from balance change
+                    old_bal = trx['old_balance']
+                    new_bal = trx['new_balance']
+                    amount_text = f"Balance: {old_bal} → {new_bal}"
+            except Exception as e:
+                amount_text = "N/A"
+            
             embed.add_field(
                 name=f"{i}. {trx_type}",
-                value=f"**Jumlah:** {trx['amount']:,.0f} WL\n**Waktu:** {trx['created_at']}",
+                value=f"**Detail:** {amount_text}\n**Waktu:** {trx['created_at']}",
                 inline=True
             )
         
