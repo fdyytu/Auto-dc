@@ -1,7 +1,6 @@
 """
 Help Command Manager
 Author: fdyytu
-Created at: 2025-03-12 14:24:08 UTC
 """
 
 import discord
@@ -42,7 +41,9 @@ class HelpManager(commands.Cog):
             "System Management": [
                 (f"{self.PREFIX}systeminfo", "Show bot system information"),
                 (f"{self.PREFIX}maintenance <on/off>", "Toggle maintenance mode"),
-                (f"{self.PREFIX}blacklist <add/remove> <growid>", "Manage blacklisted users")
+                (f"{self.PREFIX}blacklist <add/remove> <growid>", "Manage blacklisted users"),
+                (f"{self.PREFIX}backup", "Create and send database backup"),
+                (f"{self.PREFIX}restore", "Restore database from backup file")
             ],
             "User Commands": [
                 (f"{self.PREFIX}balance", "Check your balance"),
@@ -95,19 +96,37 @@ class HelpManager(commands.Cog):
             ]
         }
 
+        # Custom emoji untuk setiap kategori
+        self.category_emojis = {
+            "Product Management": "🏪",
+            "Balance Management": "💰",
+            "Transaction Management": "💳",
+            "System Management": "⚙️",
+            "User Commands": "👤",
+            "Ticket System": "🎫",
+            "Leveling System": "📈",
+            "Server Management": "🖥️",
+            "Auto Moderation": "🛡️",
+            "Reputation System": "⭐",
+            "Statistics": "📊",
+            "Help Commands": "❔"
+        }
+
     @commands.command(name="help")
     async def help_command(self, ctx):
         """Show help menu based on user permissions"""
         is_admin = await self.admin_service.check_permission(ctx.author.id, Permissions.ADMIN)
         
         embed = discord.Embed(
-            title="🔰 Command Help",
+            title="🌟 Command Help Center",
             description=(
-                f"Bot Commands - Prefix: `{self.PREFIX}`\n"
-                f"Last Updated: 2025-03-12 14:24:08 UTC\n"
-                f"Maintained by: fdyytu"
+                f"**Welcome to Bot Command Center!**\n\n"
+                f"**Prefix:** `{self.PREFIX}`\n"
+                f"**Last Updated:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}\n"
+                f"**Maintained by:** fdyytu\n\n"
+                f"*Select a category below to explore commands:*"
             ),
-            color=COLORS.DEFAULT,
+            color=discord.Color.blue(),
             timestamp=datetime.utcnow()
         )
 
@@ -134,13 +153,14 @@ class HelpManager(commands.Cog):
         for category in categories_to_show:
             commands_list = self.command_categories.get(category, [])
             if commands_list:
+                emoji = self.category_emojis.get(category, "📋")
                 commands_text = "\n".join([
                     f"`{cmd}` - {desc}" 
                     for cmd, desc in commands_list
                 ])
                 embed.add_field(
-                    name=f"📋 {category}",
-                    value=commands_text,
+                    name=f"{emoji} {category}",
+                    value=f"```yaml\n{commands_text}\n```",
                     inline=False
                 )
 
@@ -157,7 +177,6 @@ class HelpManager(commands.Cog):
     @commands.command(name="adminhelp")
     async def admin_help(self, ctx):
         """Show admin commands"""
-        # Log admin help command usage
         logger = logging.getLogger("HelpManager")
         logger.info(f"Admin help command used by {ctx.author} (ID: {ctx.author.id}) in {ctx.guild.name if ctx.guild else 'DM'}")
         
@@ -173,13 +192,15 @@ class HelpManager(commands.Cog):
         logger.info(f"Admin help command access granted to {ctx.author} (ID: {ctx.author.id})")
 
         embed = discord.Embed(
-            title="🛠️ Admin Commands",
+            title="⚡ Admin Control Panel",
             description=(
-                f"Administrative Commands - Prefix: `{self.PREFIX}`\n"
-                f"Last Updated: 2025-03-12 14:24:08 UTC\n"
-                f"Maintained by: fdyytu"
+                f"**Welcome to Admin Control Panel!**\n\n"
+                f"**Prefix:** `{self.PREFIX}`\n"
+                f"**Last Updated:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}\n"
+                f"**Maintained by:** fdyytu\n\n"
+                f"*Powerful tools at your command:*"
             ),
-            color=COLORS.DEFAULT,
+            color=discord.Color.gold(),
             timestamp=datetime.utcnow()
         )
 
@@ -195,24 +216,28 @@ class HelpManager(commands.Cog):
         for category in admin_categories:
             commands_list = self.command_categories.get(category, [])
             if commands_list:
+                emoji = self.category_emojis.get(category, "📋")
                 commands_text = "\n".join([
                     f"`{cmd}` - {desc}" 
                     for cmd, desc in commands_list
                 ])
                 embed.add_field(
-                    name=f"📋 {category}",
-                    value=commands_text,
+                    name=f"{emoji} {category}",
+                    value=f"```yaml\n{commands_text}\n```",
                     inline=False
                 )
 
-        # Add tips field
+        # Add tips field with better formatting
         embed.add_field(
-            name="💡 Tips",
+            name="💡 Quick Tips",
             value=(
-                "• Always use confirmation when prompted\n"
-                "• Check logs with !systeminfo\n"
-                "• Use !maintenance for system updates\n"
-                "• Backup data regularly"
+                "```md\n"
+                "1. Always confirm actions when prompted\n"
+                "2. Monitor system with !systeminfo\n"
+                "3. Use !maintenance before updates\n"
+                "4. Create regular backups with !backup\n"
+                "5. Check logs for troubleshooting\n"
+                "```"
             ),
             inline=False
         )
@@ -231,16 +256,16 @@ class HelpManager(commands.Cog):
             return await ctx.send("You don't have permission to view this category.")
 
         embed = discord.Embed(
-            title=f"📚 {category} Help",
+            title=f"{self.category_emojis.get(category, '📚')} {category} Help",
             description=f"Detailed commands for {category}",
-            color=COLORS.INFO,
+            color=discord.Color.green(),
             timestamp=datetime.utcnow()
         )
 
         for cmd, desc in self.command_categories[category]:
             embed.add_field(
                 name=cmd,
-                value=desc,
+                value=f"```yaml\n{desc}\n```",
                 inline=False
             )
 
