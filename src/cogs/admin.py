@@ -17,7 +17,8 @@ async def setup(bot):
             'src.cogs.admin_store', 
             'src.cogs.admin_balance',
             'src.cogs.admin_system',
-            'src.cogs.admin_transaction'
+            'src.cogs.admin_transaction',
+            'src.cogs.admin_backup'  # Tambahan untuk backup/restore
         ]
         
         for cog in admin_cogs:
