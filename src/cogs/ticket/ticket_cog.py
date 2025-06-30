@@ -24,6 +24,68 @@ class TicketSystem(commands.Cog):
         self.db = TicketDB()
         self.active_tickets = {}
         self.db.setup_tables()
+        self._auto_setup_done = False
+    
+    async def auto_setup_ticket_system(self):
+        """Auto-setup ticket system from bot config"""
+        if self._auto_setup_done:
+            return
+            
+        try:
+            # Get bot config
+            config = getattr(self.bot, 'config', {})
+            
+            for guild in self.bot.guilds:
+                # Auto-configure ticket settings from config.json
+                if self.db.auto_setup_from_config(guild.id, config):
+                    logger.info(f"✅ Auto-setup ticket system untuk guild: {guild.name}")
+                    
+                    # Setup ticket channel jika ada di config
+                    ticket_channel_id = config.get('channels', {}).get('ticket_channel')
+                    if ticket_channel_id:
+                        channel = guild.get_channel(int(ticket_channel_id))
+                        if channel:
+                            await self._setup_ticket_panel(channel)
+                            logger.info(f"✅ Ticket panel setup di channel: {channel.name}")
+                        else:
+                            logger.warning(f"⚠️  Ticket channel tidak ditemukan: {ticket_channel_id}")
+                else:
+                    logger.error(f"❌ Gagal auto-setup ticket system untuk guild: {guild.name}")
+            
+            self._auto_setup_done = True
+            
+        except Exception as e:
+            logger.error(f"❌ Error dalam auto-setup ticket system: {e}")
+    
+    async def _setup_ticket_panel(self, channel):
+        """Setup ticket panel di channel yang ditentukan"""
+        try:
+            # Cek apakah sudah ada ticket panel
+            async for message in channel.history(limit=50):
+                if (message.author == self.bot.user and 
+                    message.embeds and 
+                    "Support Tickets" in message.embeds[0].title):
+                    logger.info(f"Ticket panel sudah ada di {channel.name}")
+                    return
+            
+            # Buat ticket panel baru
+            embed = discord.Embed(
+                title="🎫 Support Tickets",
+                description="Klik tombol di bawah untuk membuat ticket support",
+                color=discord.Color.blue()
+            )
+            embed.add_field(
+                name="📋 Cara Menggunakan",
+                value="• Klik tombol **Create Ticket**\n• Isi alasan ticket Anda\n• Tim support akan membantu Anda",
+                inline=False
+            )
+            
+            view = TicketControlView()
+            await channel.send(embed=embed, view=view)
+            logger.info(f"✅ Ticket panel berhasil dibuat di {channel.name}")
+            
+        except Exception as e:
+            logger.error(f"❌ Error setup ticket panel: {e}")
 
     async def create_ticket_channel(self, ctx, reason: str, settings: Dict) -> Optional[discord.TextChannel]:
         """Create a new ticket channel"""
@@ -249,6 +311,24 @@ class TicketSystem(commands.Cog):
             embed=TicketEmbeds.success_embed(f"Ticket created in {channel.mention}"),
             ephemeral=True
         )
+    
+    @commands.Cog.listener()
+    async def on_ready(self):
+        """Auto-setup ticket system saat bot ready"""
+        if not self._auto_setup_done:
+            await asyncio.sleep(2)  # Tunggu sebentar agar bot fully ready
+            await self.auto_setup_ticket_system()
+    
+    @ticket.command(name="autosetup")
+    @commands.has_permissions(administrator=True)
+    async def auto_setup_command(self, ctx):
+        """Manually trigger auto-setup ticket system"""
+        await ctx.send("🔄 Memulai auto-setup ticket system...")
+        
+        self._auto_setup_done = False  # Reset flag
+        await self.auto_setup_ticket_system()
+        
+        await ctx.send("✅ Auto-setup ticket system selesai!")
 
 async def setup(bot):
     """Setup the Ticket cog"""

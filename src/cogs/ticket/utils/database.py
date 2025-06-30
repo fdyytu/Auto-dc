@@ -125,6 +125,86 @@ class TicketDB:
         finally:
             if conn:
                 conn.close()
+    
+    def auto_setup_from_config(self, guild_id: int, config: Dict) -> bool:
+        """Auto-setup ticket settings from bot config.json"""
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            # Extract ticket-related settings from config
+            category_id = config.get('channels', {}).get('ticket_category')
+            log_channel_id = config.get('channels', {}).get('logs')
+            support_role_id = config.get('roles', {}).get('support')
+            
+            # Insert or update settings
+            cursor.execute("""
+                INSERT OR REPLACE INTO ticket_settings 
+                (guild_id, category_id, log_channel_id, support_role_id, max_tickets, ticket_format, auto_close_hours)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                str(guild_id),
+                category_id,
+                log_channel_id, 
+                support_role_id,
+                3,  # Default max tickets
+                'ticket-{user}-{number}',
+                48  # Auto close after 48 hours
+            ))
+            
+            conn.commit()
+            logger.info(f"✅ Ticket settings auto-configured for guild {guild_id}")
+            return True
+            
+        except sqlite3.Error as e:
+            logger.error(f"❌ Error auto-setting up ticket config: {e}")
+            if conn:
+                conn.rollback()
+            return False
+        finally:
+            if conn:
+                conn.close()
+    
+    def setup_ticket_channel(self, guild_id: int, channel_id: int) -> bool:
+        """Setup ticket system in a specific channel"""
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            # Update or insert the ticket channel setting
+            cursor.execute("""
+                INSERT OR REPLACE INTO ticket_settings 
+                (guild_id, category_id, log_channel_id, support_role_id, max_tickets, ticket_format, auto_close_hours)
+                VALUES (?, 
+                    COALESCE((SELECT category_id FROM ticket_settings WHERE guild_id = ?), ?),
+                    COALESCE((SELECT log_channel_id FROM ticket_settings WHERE guild_id = ?), ?),
+                    COALESCE((SELECT support_role_id FROM ticket_settings WHERE guild_id = ?), ?),
+                    COALESCE((SELECT max_tickets FROM ticket_settings WHERE guild_id = ?), 3),
+                    COALESCE((SELECT ticket_format FROM ticket_settings WHERE guild_id = ?), 'ticket-{user}-{number}'),
+                    COALESCE((SELECT auto_close_hours FROM ticket_settings WHERE guild_id = ?), 48)
+                )
+            """, (
+                str(guild_id),
+                str(guild_id), str(channel_id),  # category_id fallback
+                str(guild_id), str(channel_id),  # log_channel_id fallback  
+                str(guild_id), None,             # support_role_id fallback
+                str(guild_id),                   # max_tickets
+                str(guild_id),                   # ticket_format
+                str(guild_id)                    # auto_close_hours
+            ))
+            
+            conn.commit()
+            logger.info(f"✅ Ticket channel setup completed for guild {guild_id}")
+            return True
+            
+        except sqlite3.Error as e:
+            logger.error(f"❌ Error setting up ticket channel: {e}")
+            if conn:
+                conn.rollback()
+            return False
+        finally:
+            if conn:
+                conn.close()
 
     def create_ticket(self, guild_id: str, channel_id: str, user_id: str, reason: str) -> Optional[int]:
         """Create a new ticket record"""
