@@ -173,7 +173,7 @@ class ModuleLoader:
                 continue
                 
             # Skip admin sub-cogs yang dimuat oleh admin.py
-            admin_sub_cogs = ['admin_base.py', 'admin_balance.py', 'admin_store.py', 'admin_system.py', 'admin_transaction.py']
+            admin_sub_cogs = ['admin_base.py', 'admin_balance.py', 'admin_store.py', 'admin_system.py', 'admin_transaction.py', 'admin_backup.py']
             if py_file.name in admin_sub_cogs:
                 logger.debug(f"⏭️  Skipping admin sub-cog: {py_file.name} (loaded by admin.py)")
                 continue
