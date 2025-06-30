@@ -201,7 +201,9 @@ class TicketSystem(commands.Cog):
                 timeout=60.0
             )
 
-            if interaction.custom_id == "cancel_ticket":
+            # Pastikan interaction memiliki custom_id sebelum mengaksesnya
+            custom_id = getattr(interaction, 'custom_id', None)
+            if custom_id == "cancel_ticket":
                 await msg.edit(content="Ticket closure cancelled.", view=None)
                 return
 
@@ -220,7 +222,12 @@ class TicketSystem(commands.Cog):
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction):
         """Handle button interactions"""
-        if not interaction.custom_id:
+        # Hanya proses component interactions (button, select menu, dll)
+        if interaction.type != discord.InteractionType.component:
+            return
+            
+        # Pastikan custom_id ada dan tidak kosong
+        if not getattr(interaction, 'custom_id', None):
             return
 
         # Handle create ticket button
@@ -273,7 +280,12 @@ class TicketSystem(commands.Cog):
     @commands.Cog.listener()
     async def on_modal_submit(self, interaction: discord.Interaction):
         """Handle modal submissions"""
-        if not interaction.custom_id == "create_ticket":
+        # Hanya proses modal submit interactions
+        if interaction.type != discord.InteractionType.modal_submit:
+            return
+            
+        # Pastikan custom_id ada dan sesuai
+        if not getattr(interaction, 'custom_id', None) or interaction.custom_id != "create_ticket":
             return
 
         # Get reason from modal data
