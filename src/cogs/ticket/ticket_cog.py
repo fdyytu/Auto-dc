@@ -163,15 +163,25 @@ class TicketSystem(commands.Cog):
 
         # Handle create ticket button
         if interaction.custom_id == "create_ticket":
-            modal = discord.ui.Modal(title="Create Ticket")
-            modal.add_item(
-                discord.ui.TextInput(
-                    label="Reason",
-                    placeholder="Enter the reason for your ticket",
-                    required=True,
-                    max_length=1000
-                )
-            )
+            # Create a simple modal for ticket creation
+            class TicketModal(discord.ui.Modal):
+                def __init__(self):
+                    super().__init__(title="Create Ticket", custom_id="create_ticket")
+                    
+                    self.reason_input = discord.ui.TextInput(
+                        label="Reason",
+                        placeholder="Enter the reason for your ticket",
+                        required=True,
+                        max_length=1000,
+                        style=discord.TextStyle.paragraph
+                    )
+                    self.add_item(self.reason_input)
+                
+                async def on_submit(self, interaction: discord.Interaction):
+                    # This will be handled by on_modal_submit
+                    pass
+            
+            modal = TicketModal()
             await interaction.response.send_modal(modal)
             return
 
@@ -204,11 +214,25 @@ class TicketSystem(commands.Cog):
         if not interaction.custom_id == "create_ticket":
             return
 
-        reason = interaction.data["components"][0]["components"][0]["value"]
+        # Get reason from modal data
+        try:
+            reason = interaction.data["components"][0]["components"][0]["value"]
+        except (KeyError, IndexError):
+            reason = "No reason provided"
+        
         settings = self.db.get_guild_settings(interaction.guild_id)
         
+        # Create a mock context object for create_ticket_channel
+        class MockContext:
+            def __init__(self, interaction):
+                self.guild = interaction.guild
+                self.author = interaction.user
+                self.send = interaction.followup.send
+        
+        mock_ctx = MockContext(interaction)
+        
         # Create ticket channel
-        channel = await self.create_ticket_channel(interaction, reason, settings)
+        channel = await self.create_ticket_channel(mock_ctx, reason, settings)
         if not channel:
             await interaction.response.send_message(
                 embed=TicketEmbeds.error_embed("Failed to create ticket"),
