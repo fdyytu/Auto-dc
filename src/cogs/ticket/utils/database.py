@@ -139,11 +139,15 @@ class TicketDB:
             
             ticket_id = cursor.lastrowid
             
-            # Log creation
-            cursor.execute("""
-                INSERT INTO admin_logs (admin_id, action, target, details)
-                VALUES (?, ?, ?, ?)
-            """, (user_id, 'ticket_create', channel_id, f"Ticket created: {reason}"))
+            # Log creation (optional - skip if admin_logs table doesn't exist)
+            try:
+                cursor.execute("""
+                    INSERT INTO admin_logs (admin_id, action, target, details)
+                    VALUES (?, ?, ?, ?)
+                """, (user_id, 'ticket_create', channel_id, f"Ticket created: {reason}"))
+            except sqlite3.Error:
+                # admin_logs table doesn't exist, skip logging
+                pass
             
             conn.commit()
             return ticket_id
@@ -171,10 +175,15 @@ class TicketDB:
                 WHERE id = ?
             """, (closed_by, ticket_id))
 
-            cursor.execute("""
-                INSERT INTO admin_logs (admin_id, action, target, details)
-                VALUES (?, ?, ?, ?)
-            """, (closed_by, 'ticket_close', str(ticket_id), f"Ticket {ticket_id} closed"))
+            # Log closure (optional - skip if admin_logs table doesn't exist)
+            try:
+                cursor.execute("""
+                    INSERT INTO admin_logs (admin_id, action, target, details)
+                    VALUES (?, ?, ?, ?)
+                """, (closed_by, 'ticket_close', str(ticket_id), f"Ticket {ticket_id} closed"))
+            except sqlite3.Error:
+                # admin_logs table doesn't exist, skip logging
+                pass
 
             conn.commit()
             return True
