@@ -3,7 +3,7 @@ Ticket System Cog Entry Point
 Loads the ticket system from the ticket module
 """
 
-from .ticket.ticket_cog import TicketSystem
+from src.cogs.ticket.ticket_cog import TicketSystem
 
 async def setup(bot):
     """Setup the Ticket cog"""
