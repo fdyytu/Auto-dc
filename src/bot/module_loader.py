@@ -145,21 +145,32 @@ class ModuleLoader:
         """
         cog_modules = []
         
-        # Urutan prioritas loading cogs (livestock dulu, baru buttons)
+        # Urutan prioritas loading cogs (livestock dulu, baru buttons, lalu ticket)
         priority_order = [
             'live_stock.py',    # Harus dimuat pertama
             'live_buttons.py',  # Dimuat setelah live_stock
+            'ticket',           # Ticket system (subdirektori)
         ]
         
         # Load priority cogs first
-        for priority_file in priority_order:
-            py_file = cogs_path / priority_file
-            if py_file.exists() and self._validate_cog_file(py_file):
-                module_name = f"src.cogs.{py_file.stem}"
-                cog_modules.append(module_name)
-                logger.info(f"🔍 Priority cog ditemukan: {module_name}")
+        for priority_item in priority_order:
+            if priority_item.endswith('.py'):
+                # File cog biasa
+                py_file = cogs_path / priority_item
+                if py_file.exists() and self._validate_cog_file(py_file):
+                    module_name = f"src.cogs.{py_file.stem}"
+                    cog_modules.append(module_name)
+                    logger.info(f"🔍 Priority cog ditemukan: {module_name}")
+            else:
+                # Subdirektori cog
+                subdir = cogs_path / priority_item
+                if subdir.is_dir() and (subdir / "__init__.py").exists():
+                    module_name = f"src.cogs.{priority_item}"
+                    if self._validate_subdir_cog(subdir):
+                        cog_modules.append(module_name)
+                        logger.info(f"🔍 Priority subdirectory cog ditemukan: {module_name}")
         
-        # Load remaining cogs
+        # Load remaining file cogs
         for py_file in cogs_path.glob("*.py"):
             if py_file.name == "__init__.py":
                 continue
@@ -188,6 +199,22 @@ class ModuleLoader:
             else:
                 logger.warning(f"⚠️  File {py_file.name} tidak memiliki setup function yang valid")
         
+        # Load remaining subdirectory cogs
+        for subdir in cogs_path.iterdir():
+            if not subdir.is_dir() or subdir.name.startswith('.'):
+                continue
+            
+            # Skip priority subdirectories yang sudah dimuat
+            if subdir.name in priority_order:
+                continue
+                
+            # Cek apakah subdirektori memiliki __init__.py dengan setup function
+            init_file = subdir / "__init__.py"
+            if init_file.exists() and self._validate_subdir_cog(subdir):
+                module_name = f"src.cogs.{subdir.name}"
+                cog_modules.append(module_name)
+                logger.debug(f"🔍 Ditemukan subdirectory cog: {module_name}")
+        
         return cog_modules  # Tidak di-sort agar urutan prioritas tetap terjaga
     
     def _validate_cog_file(self, file_path: Path) -> bool:
@@ -213,6 +240,29 @@ class ModuleLoader:
                    
         except Exception as e:
             logger.error(f"Error validating {file_path}: {e}")
+            return False
+    
+    def _validate_subdir_cog(self, subdir_path: Path) -> bool:
+        """
+        Validasi apakah subdirektori memiliki __init__.py dengan setup function yang valid
+        Returns: True jika valid, False jika tidak
+        """
+        try:
+            init_file = subdir_path / "__init__.py"
+            if not init_file.exists():
+                return False
+                
+            with open(init_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Cek apakah ada async def setup atau def setup
+            has_setup = ('async def setup(' in content or 'def setup(' in content)
+            
+            # Untuk subdirektori, setup function adalah wajib
+            return has_setup
+                   
+        except Exception as e:
+            logger.error(f"Error validating subdirectory {subdir_path}: {e}")
             return False
     
     def get_loaded_modules(self) -> List[str]:
