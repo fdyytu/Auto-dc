@@ -81,6 +81,10 @@ class TicketSystem(commands.Cog):
             )
             
             view = TicketControlView()
+            
+            # Register view sebagai persistent
+            self.bot.add_view(view)
+            
             await channel.send(embed=embed, view=view)
             logger.info(f"✅ Ticket panel berhasil dibuat di {channel.name}")
             
@@ -188,6 +192,10 @@ class TicketSystem(commands.Cog):
             )
             
             view = TicketControlView()
+            
+            # Register view sebagai persistent
+            self.bot.add_view(view)
+            
             await channel.send(embed=embed, view=view)
             
             logger.info(f"Setup ticket system berhasil di channel {channel.name}")
@@ -220,6 +228,10 @@ class TicketSystem(commands.Cog):
             try:
                 embed = TicketEmbeds.ticket_created(ctx.author, reason)
                 view = TicketView(self.active_tickets[channel.id])
+                
+                # Register view sebagai persistent
+                self.bot.add_view(view)
+                
                 await channel.send(embed=embed, view=view)
                 logger.info(f"Ticket berhasil dibuat di channel {channel.name} oleh {ctx.author}")
             except Exception as e:
@@ -288,55 +300,80 @@ class TicketSystem(commands.Cog):
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction):
         """Handle button interactions"""
-        # Hanya proses component interactions (button, select menu, dll)
+        # Log semua interaction untuk debugging
+        logger.debug(f"Interaction received from {interaction.user}: type={interaction.type}, custom_id={getattr(interaction, 'custom_id', 'NONE')}")
+        
+        # Hanya proses button interactions
         if interaction.type != discord.InteractionType.component:
+            logger.debug(f"Skipping non-component interaction from {interaction.user}")
             return
             
-        # Pastikan custom_id ada dan tidak kosong
-        if not getattr(interaction, 'custom_id', None):
-            logger.warning(f"Interaksi dari {interaction.user} tidak memiliki custom_id.")
+        # Pastikan custom_id ada dengan pengecekan yang lebih robust
+        custom_id = getattr(interaction, 'custom_id', None)
+        if not custom_id:
+            logger.warning(f"Interaksi dari {interaction.user} tidak memiliki custom_id. Type: {interaction.type}, Data: {getattr(interaction, 'data', {})}")
+            try:
+                await interaction.response.send_message(
+                    embed=TicketEmbeds.error_embed("Terjadi kesalahan dengan tombol ini. Silakan coba lagi."),
+                    ephemeral=True
+                )
+            except:
+                pass  # Ignore jika sudah ada response
             return
 
+        logger.info(f"Processing interaction with custom_id: {custom_id} from {interaction.user}")
+
         # Handle create ticket button
-        if interaction.custom_id == "create_ticket":
+        if custom_id == "create_ticket":
             logger.info(f"Tombol create_ticket ditekan oleh: {interaction.user} (ID: {interaction.user.id})")
-            # Create a simple modal for ticket creation
-            class TicketModal(discord.ui.Modal):
-                def __init__(self):
-                    super().__init__(title="Create Ticket", custom_id="create_ticket")
+            try:
+                # Create a simple modal for ticket creation
+                class TicketModal(discord.ui.Modal):
+                    def __init__(self):
+                        super().__init__(title="Create Ticket", custom_id="create_ticket")
+                        
+                        self.reason_input = discord.ui.TextInput(
+                            label="Reason",
+                            placeholder="Enter the reason for your ticket",
+                            required=True,
+                            max_length=1000,
+                            style=discord.TextStyle.paragraph
+                        )
+                        self.add_item(self.reason_input)
                     
-                    self.reason_input = discord.ui.TextInput(
-                        label="Reason",
-                        placeholder="Enter the reason for your ticket",
-                        required=True,
-                        max_length=1000,
-                        style=discord.TextStyle.paragraph
-                    )
-                    self.add_item(self.reason_input)
+                    async def on_submit(self, interaction: discord.Interaction):
+                        # This will be handled by on_modal_submit
+                        pass
                 
-                async def on_submit(self, interaction: discord.Interaction):
-                    # This will be handled by on_modal_submit
+                modal = TicketModal()
+                await interaction.response.send_modal(modal)
+                logger.info(f"Modal berhasil dikirim ke {interaction.user}")
+            except Exception as e:
+                logger.error(f"Error saat mengirim modal ke {interaction.user}: {e}")
+                try:
+                    await interaction.response.send_message(
+                        embed=TicketEmbeds.error_embed("Terjadi kesalahan saat membuka form ticket"),
+                        ephemeral=True
+                    )
+                except:
                     pass
-            
-            modal = TicketModal()
-            await interaction.response.send_modal(modal)
             return
 
         # Handle close ticket button
-        if interaction.custom_id.startswith("close_ticket_"):
-            ticket_id = int(interaction.custom_id.split("_")[-1])
-            logger.info(f"Tombol close_ticket ditekan oleh: {interaction.user} (ID: {interaction.user.id}) untuk ticket ID: {ticket_id}")
-            channel = interaction.channel
-            
-            if channel.id not in self.active_tickets:
-                logger.warning(f"Close ticket gagal: Ticket channel {channel.id} tidak ditemukan di active_tickets")
-                await interaction.response.send_message(
-                    embed=TicketEmbeds.error_embed("Tiket ini sudah tertutup!"),
-                    ephemeral=True
-                )
-                return
-
+        if custom_id.startswith("close_ticket_"):
             try:
+                ticket_id = int(custom_id.split("_")[-1])
+                logger.info(f"Tombol close_ticket ditekan oleh: {interaction.user} (ID: {interaction.user.id}) untuk ticket ID: {ticket_id}")
+                channel = interaction.channel
+                
+                if channel.id not in self.active_tickets:
+                    logger.warning(f"Close ticket gagal: Ticket channel {channel.id} tidak ditemukan di active_tickets")
+                    await interaction.response.send_message(
+                        embed=TicketEmbeds.error_embed("Tiket ini sudah tertutup!"),
+                        ephemeral=True
+                    )
+                    return
+
                 if self.db.close_ticket(ticket_id, str(interaction.user.id)):
                     logger.info(f"Ticket dengan ID {ticket_id} berhasil ditutup oleh {interaction.user}")
                     await interaction.response.send_message("🔒 Menutup ticket dalam 5 detik...")
@@ -349,12 +386,31 @@ class TicketSystem(commands.Cog):
                         embed=TicketEmbeds.error_embed("Gagal menutup tiket"),
                         ephemeral=True
                     )
-            except Exception as e:
-                logger.error(f"Error saat menutup ticket {ticket_id}: {str(e)}")
+            except ValueError as e:
+                logger.error(f"Error parsing ticket_id dari custom_id {custom_id}: {e}")
                 await interaction.response.send_message(
-                    embed=TicketEmbeds.error_embed("Terjadi kesalahan saat menutup tiket"),
+                    embed=TicketEmbeds.error_embed("ID tiket tidak valid"),
                     ephemeral=True
                 )
+            except Exception as e:
+                logger.error(f"Error saat menutup ticket: {str(e)}")
+                try:
+                    await interaction.response.send_message(
+                        embed=TicketEmbeds.error_embed("Terjadi kesalahan saat menutup tiket"),
+                        ephemeral=True
+                    )
+                except:
+                    pass
+            return
+        
+        # Handle confirm/cancel buttons
+        if custom_id in ["confirm_ticket", "cancel_ticket"]:
+            logger.info(f"Tombol {custom_id} ditekan oleh: {interaction.user}")
+            # These are handled by the wait_for in close_ticket command
+            return
+        
+        # Log unhandled custom_id
+        logger.warning(f"Unhandled custom_id: {custom_id} dari {interaction.user}")
 
     @commands.Cog.listener()
     async def on_modal_submit(self, interaction: discord.Interaction):
@@ -401,6 +457,10 @@ class TicketSystem(commands.Cog):
             # Send initial message with ticket view
             embed = TicketEmbeds.ticket_created(interaction.user, reason)
             view = TicketView(self.active_tickets[channel.id])
+            
+            # Register view sebagai persistent
+            self.bot.add_view(view)
+            
             await channel.send(embed=embed, view=view)
             
             logger.info(f"Ticket berhasil dibuat oleh {interaction.user} di channel {channel.name}")
@@ -415,12 +475,31 @@ class TicketSystem(commands.Cog):
                 ephemeral=True
             )
     
+    async def register_persistent_views(self):
+        """Register persistent views untuk memastikan views tetap aktif setelah restart"""
+        try:
+            # Register TicketControlView
+            self.bot.add_view(TicketControlView())
+            logger.info("✅ TicketControlView berhasil diregistrasi sebagai persistent view")
+            
+            # Register TicketView untuk setiap active ticket
+            for channel_id, ticket_id in self.active_tickets.items():
+                view = TicketView(ticket_id)
+                self.bot.add_view(view)
+                logger.info(f"✅ TicketView untuk ticket {ticket_id} berhasil diregistrasi")
+                
+        except Exception as e:
+            logger.error(f"❌ Error saat registrasi persistent views: {e}")
+
     @commands.Cog.listener()
     async def on_ready(self):
         """Auto-setup ticket system saat bot ready"""
         if not self._auto_setup_done:
             await asyncio.sleep(2)  # Tunggu sebentar agar bot fully ready
             await self.auto_setup_ticket_system()
+            
+        # Register persistent views
+        await self.register_persistent_views()
     
     @ticket.command(name="autosetup")
     @commands.has_permissions(administrator=True)
