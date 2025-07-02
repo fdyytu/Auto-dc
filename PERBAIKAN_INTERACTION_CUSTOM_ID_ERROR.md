@@ -1,145 +1,116 @@
-# Perbaikan AttributeError: 'Interaction' object has no attribute 'custom_id'
+# Perbaikan Error: AttributeError: 'Interaction' object has no attribute 'custom_id'
 
-## 📋 Ringkasan Masalah
+## Deskripsi Error
 
-**Error yang Terjadi:**
+Error ini terjadi karena kode mencoba mengakses `interaction.custom_id` secara langsung, padahal dalam Discord.py, `custom_id` tidak tersedia sebagai atribut langsung pada objek `Interaction`.
+
+### Error Log:
 ```
 AttributeError: 'Interaction' object has no attribute 'custom_id'
+File "/app/src/cogs/ticket/views/ticket_view.py", line 46, in create_ticket_button
+logger.info(f"Create ticket button clicked by {interaction.user} (custom_id: {interaction.custom_id})")
 ```
 
-**Lokasi Error:**
-- File: `/app/src/cogs/ticket/ticket_cog.py`
-- Baris: 223 (fungsi `on_interaction`)
-- Juga ditemukan masalah serupa di baris 204 dan 276
+## Root Cause
 
-## 🔍 Analisis Root Cause
+Dalam Discord.py, `custom_id` tidak dapat diakses langsung dari objek `Interaction`. Cara yang benar untuk mengakses `custom_id` adalah:
 
-1. **Masalah Utama**: Tidak semua jenis `discord.Interaction` memiliki atribut `custom_id`
-2. **Penyebab**: Atribut `custom_id` hanya ada pada interaction yang berasal dari komponen UI (Button, Select Menu, Modal)
-3. **Interaction Types yang TIDAK memiliki custom_id**:
-   - Slash commands (`InteractionType.application_command`)
-   - Autocomplete (`InteractionType.autocomplete`)
-   - Dan jenis interaction lainnya
+1. **Untuk button callbacks**: Gunakan `button.custom_id` (parameter kedua dalam callback)
+2. **Untuk interaction data**: Gunakan `interaction.data.get('custom_id')`
+3. **Untuk modal submissions**: Gunakan `interaction.data.get('custom_id')`
 
-## 🛠️ Perbaikan yang Dilakukan
+## Perbaikan yang Dilakukan
 
-### 1. Fungsi `on_interaction` (Baris 223)
+### 1. File: `src/cogs/ticket/views/ticket_view.py`
 
-**Sebelum:**
+#### Sebelum:
 ```python
-@commands.Cog.listener()
-async def on_interaction(self, interaction: discord.Interaction):
-    """Handle button interactions"""
-    if not interaction.custom_id:  # ❌ ERROR: AttributeError
-        return
+# Baris 30 - TicketView.close_ticket_callback
+logger.info(f"Close ticket button clicked by {interaction.user} (custom_id: {interaction.custom_id})")
+
+# Baris 46 - TicketControlView.create_ticket_button  
+logger.info(f"Create ticket button clicked by {interaction.user} (custom_id: {interaction.custom_id})")
+
+# Baris 60 - TicketConfirmView.confirm_button
+logger.info(f"Confirm ticket button clicked by {interaction.user} (custom_id: {interaction.custom_id})")
+
+# Baris 70 - TicketConfirmView.cancel_button
+logger.info(f"Cancel ticket button clicked by {interaction.user} (custom_id: {interaction.custom_id})")
 ```
 
-**Sesudah:**
+#### Sesudah:
 ```python
-@commands.Cog.listener()
-async def on_interaction(self, interaction: discord.Interaction):
-    """Handle button interactions"""
-    # Hanya proses component interactions (button, select menu, dll)
-    if interaction.type != discord.InteractionType.component:
-        return
-        
-    # Pastikan custom_id ada dan tidak kosong
-    if not getattr(interaction, 'custom_id', None):
-        return
+# Baris 30 - TicketView.close_ticket_callback
+custom_id = interaction.data.get('custom_id', 'unknown')
+logger.info(f"Close ticket button clicked by {interaction.user} (custom_id: {custom_id})")
+
+# Baris 46 - TicketControlView.create_ticket_button  
+logger.info(f"Create ticket button clicked by {interaction.user} (custom_id: {button.custom_id})")
+
+# Baris 60 - TicketConfirmView.confirm_button
+logger.info(f"Confirm ticket button clicked by {interaction.user} (custom_id: {button.custom_id})")
+
+# Baris 70 - TicketConfirmView.cancel_button
+logger.info(f"Cancel ticket button clicked by {interaction.user} (custom_id: {button.custom_id})")
 ```
 
-### 2. Fungsi `on_modal_submit` (Baris 276)
+### 2. File: `src/cogs/ticket/ticket_cog.py`
 
-**Sebelum:**
+#### Sebelum:
 ```python
-@commands.Cog.listener()
+# Baris 423 - on_modal_submit
+if not getattr(interaction, 'custom_id', None) or interaction.custom_id != "create_ticket":
+    logger.warning(f"Modal submit dari {interaction.user} memiliki custom_id tidak valid")
+```
+
+#### Sesudah:
+```python
+# Baris 423 - on_modal_submit
+modal_custom_id = interaction.data.get('custom_id')
+if not modal_custom_id or modal_custom_id != "create_ticket":
+    logger.warning(f"Modal submit dari {interaction.user} memiliki custom_id tidak valid: {modal_custom_id}")
+```
+
+## Penjelasan Perbaikan
+
+### 1. Button Callbacks dengan Parameter Button
+Untuk callback button yang memiliki parameter `button`, gunakan `button.custom_id`:
+```python
+async def button_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
+    custom_id = button.custom_id  # ✅ Benar
+    # custom_id = interaction.custom_id  # ❌ Salah
+```
+
+### 2. Callback Tanpa Parameter Button
+Untuk callback yang tidak memiliki parameter button, gunakan `interaction.data.get('custom_id')`:
+```python
+async def callback(self, interaction: discord.Interaction):
+    custom_id = interaction.data.get('custom_id', 'unknown')  # ✅ Benar
+    # custom_id = interaction.custom_id  # ❌ Salah
+```
+
+### 3. Modal Submissions
+Untuk modal submissions, selalu gunakan `interaction.data.get('custom_id')`:
+```python
 async def on_modal_submit(self, interaction: discord.Interaction):
-    """Handle modal submissions"""
-    if not interaction.custom_id == "create_ticket":  # ❌ Potensi error
-        return
+    modal_custom_id = interaction.data.get('custom_id')  # ✅ Benar
+    # modal_custom_id = interaction.custom_id  # ❌ Salah
 ```
 
-**Sesudah:**
-```python
-@commands.Cog.listener()
-async def on_modal_submit(self, interaction: discord.Interaction):
-    """Handle modal submissions"""
-    # Hanya proses modal submit interactions
-    if interaction.type != discord.InteractionType.modal_submit:
-        return
-        
-    # Pastikan custom_id ada dan sesuai
-    if not getattr(interaction, 'custom_id', None) or interaction.custom_id != "create_ticket":
-        return
-```
+## Testing
 
-### 3. Fungsi `close_ticket` (Baris 204)
+Setelah perbaikan ini, error `AttributeError: 'Interaction' object has no attribute 'custom_id'` tidak akan muncul lagi. Semua logging akan berfungsi dengan baik dan menampilkan `custom_id` yang benar.
 
-**Sebelum:**
-```python
-if interaction.custom_id == "cancel_ticket":  # ❌ Potensi error
-    await msg.edit(content="Ticket closure cancelled.", view=None)
-    return
-```
+## Best Practices
 
-**Sesudah:**
-```python
-# Pastikan interaction memiliki custom_id sebelum mengaksesnya
-custom_id = getattr(interaction, 'custom_id', None)
-if custom_id == "cancel_ticket":
-    await msg.edit(content="Ticket closure cancelled.", view=None)
-    return
-```
+1. **Selalu gunakan `button.custom_id`** jika callback memiliki parameter button
+2. **Gunakan `interaction.data.get('custom_id')`** untuk akses langsung dari interaction data
+3. **Tambahkan fallback value** saat menggunakan `.get()` untuk menghindari None
+4. **Konsisten dalam penggunaan** metode akses custom_id di seluruh aplikasi
 
-## ✅ Metode Perbaikan yang Digunakan
+## Files Modified
 
-1. **Type Checking**: Menggunakan `interaction.type` untuk memfilter jenis interaction yang tepat
-2. **Safe Attribute Access**: Menggunakan `getattr(interaction, 'custom_id', None)` untuk safely mengakses atribut
-3. **Early Return**: Mengembalikan fungsi lebih awal jika interaction bukan jenis yang diharapkan
+- `src/cogs/ticket/views/ticket_view.py` - Perbaikan 4 callback functions
+- `src/cogs/ticket/ticket_cog.py` - Perbaikan 1 modal submission handler
 
-## 🧪 Testing
-
-Dibuat test script (`test_interaction_fix.py`) yang memverifikasi:
-- ✅ Safe access ke `custom_id` attribute
-- ✅ Handling interaction tanpa `custom_id`
-- ✅ Filtering berdasarkan interaction type
-
-**Hasil Test:**
-```
-🧪 Testing safe custom_id access...
-✅ Test 1 passed: Interaction dengan custom_id
-✅ Test 2 passed: Interaction tanpa custom_id
-✅ Test 3 passed: Interaction type filtering
-
-🎉 Semua test berhasil! Perbaikan AttributeError sudah benar.
-```
-
-## 📝 Commit Details
-
-**Branch:** `fix-interaction-custom-id-error`
-**Commit Message:** "Perbaiki AttributeError: 'Interaction' object has no attribute 'custom_id'"
-
-**Files Changed:**
-- `src/cogs/ticket/ticket_cog.py` (15 insertions, 3 deletions)
-
-## 🔮 Pencegahan Error Serupa
-
-1. **Best Practice**: Selalu gunakan `getattr()` atau `hasattr()` saat mengakses atribut yang mungkin tidak ada
-2. **Type Filtering**: Filter interaction berdasarkan `interaction.type` sebelum memproses
-3. **Defensive Programming**: Tambahkan pengecekan null/None sebelum menggunakan nilai
-
-## 📊 Impact
-
-- ✅ Error `AttributeError: 'Interaction' object has no attribute 'custom_id'` sudah teratasi
-- ✅ Bot tidak akan crash lagi saat menerima interaction jenis lain
-- ✅ Ticket system tetap berfungsi normal
-- ✅ Kode lebih robust dan defensive
-
-## 🎯 Kesimpulan
-
-Perbaikan ini mengatasi masalah fundamental dalam handling Discord interactions dengan:
-1. Memfilter jenis interaction yang tepat
-2. Menggunakan safe attribute access
-3. Menambahkan defensive programming practices
-
-Error yang sebelumnya menyebabkan bot crash sekarang sudah teratasi dan bot dapat berjalan dengan stabil.
+Perbaikan ini memastikan sistem ticket berfungsi dengan baik tanpa error AttributeError.
