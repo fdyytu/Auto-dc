@@ -268,7 +268,7 @@ class TicketSystem(commands.Cog):
                 )
 
                 # Pastikan interaction memiliki custom_id sebelum mengaksesnya
-                custom_id = getattr(interaction, 'custom_id', None)
+                custom_id = interaction.data.get('custom_id') if hasattr(interaction, 'data') and interaction.data else None
                 if custom_id == "cancel_ticket":
                     logger.info(f"Penutupan ticket {ticket_id} dibatalkan oleh {ctx.author}")
                     await msg.edit(content="Penutupan ticket dibatalkan.", view=None)
@@ -301,7 +301,7 @@ class TicketSystem(commands.Cog):
     async def on_interaction(self, interaction: discord.Interaction):
         """Handle button interactions"""
         # Log semua interaction untuk debugging
-        logger.debug(f"Interaction received from {interaction.user}: type={interaction.type}, custom_id={getattr(interaction, 'custom_id', 'NONE')}")
+        logger.debug(f"Interaction received from {interaction.user}: type={interaction.type}, custom_id={interaction.data.get('custom_id', 'NONE') if hasattr(interaction, 'data') and interaction.data else 'NONE'}")
         
         # Hanya proses button interactions
         if interaction.type != discord.InteractionType.component:
@@ -309,7 +309,7 @@ class TicketSystem(commands.Cog):
             return
             
         # Pastikan custom_id ada dengan pengecekan yang lebih robust
-        custom_id = getattr(interaction, 'custom_id', None)
+        custom_id = interaction.data.get('custom_id') if hasattr(interaction, 'data') and interaction.data else None
         if not custom_id:
             logger.warning(f"Interaksi dari {interaction.user} tidak memiliki custom_id. Type: {interaction.type}, Data: {getattr(interaction, 'data', {})}")
             try:
