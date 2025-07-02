@@ -323,36 +323,54 @@ class TicketSystem(commands.Cog):
 
         logger.info(f"Processing interaction with custom_id: {custom_id} from {interaction.user}")
 
-        # Handle create ticket button
+        # Handle create ticket button - langsung buat channel tanpa modal
         if custom_id == "create_ticket":
             logger.info(f"Tombol create_ticket ditekan oleh: {interaction.user} (ID: {interaction.user.id})")
             try:
-                # Create a simple modal for ticket creation
-                class TicketModal(discord.ui.Modal):
-                    def __init__(self):
-                        super().__init__(title="Create Ticket", custom_id="create_ticket")
-                        
-                        self.reason_input = discord.ui.TextInput(
-                            label="Reason",
-                            placeholder="Enter the reason for your ticket",
-                            required=True,
-                            max_length=1000,
-                            style=discord.TextStyle.paragraph
-                        )
-                        self.add_item(self.reason_input)
-                    
-                    async def on_submit(self, interaction: discord.Interaction):
-                        # This will be handled by on_modal_submit
-                        pass
+                # Get guild settings
+                settings = self.db.get_guild_settings(interaction.guild_id)
                 
-                modal = TicketModal()
-                await interaction.response.send_modal(modal)
-                logger.info(f"Modal berhasil dikirim ke {interaction.user}")
+                # Create a mock context object for create_ticket_channel
+                class MockContext:
+                    def __init__(self, interaction):
+                        self.guild = interaction.guild
+                        self.author = interaction.user
+                        self.send = interaction.followup.send
+                
+                mock_ctx = MockContext(interaction)
+                
+                # Use default reason since we're not using modal
+                default_reason = "Support diperlukan"
+                
+                # Create ticket channel directly
+                channel = await self.create_ticket_channel(mock_ctx, default_reason, settings)
+                if not channel:
+                    logger.error(f"Gagal membuat ticket untuk {interaction.user} (ID: {interaction.user.id})")
+                    await interaction.response.send_message(
+                        embed=TicketEmbeds.error_embed("Gagal membuat tiket"),
+                        ephemeral=True
+                    )
+                    return
+
+                # Send initial message with ticket view
+                embed = TicketEmbeds.ticket_created(interaction.user, default_reason)
+                view = TicketView(self.active_tickets[channel.id])
+                
+                # Register view sebagai persistent
+                self.bot.add_view(view)
+                
+                await channel.send(embed=embed, view=view)
+                
+                logger.info(f"Ticket berhasil dibuat oleh {interaction.user} di channel {channel.name}")
+                await interaction.response.send_message(
+                    embed=TicketEmbeds.success_embed(f"Tiket berhasil dibuat di {channel.mention}"),
+                    ephemeral=True
+                )
             except Exception as e:
-                logger.error(f"Error saat mengirim modal ke {interaction.user}: {e}")
+                logger.error(f"Error saat membuat ticket: {str(e)}")
                 try:
                     await interaction.response.send_message(
-                        embed=TicketEmbeds.error_embed("Terjadi kesalahan saat membuka form ticket"),
+                        embed=TicketEmbeds.error_embed("Terjadi kesalahan saat membuat tiket"),
                         ephemeral=True
                     )
                 except:
@@ -412,70 +430,7 @@ class TicketSystem(commands.Cog):
         # Log unhandled custom_id
         logger.warning(f"Unhandled custom_id: {custom_id} dari {interaction.user}")
 
-    @commands.Cog.listener()
-    async def on_modal_submit(self, interaction: discord.Interaction):
-        """Handle modal submissions"""
-        # Hanya proses modal submit interactions
-        if interaction.type != discord.InteractionType.modal_submit:
-            return
-            
-        # Pastikan custom_id ada dan sesuai
-        modal_custom_id = interaction.data.get('custom_id')
-        if not modal_custom_id or modal_custom_id != "create_ticket":
-            logger.warning(f"Modal submit dari {interaction.user} memiliki custom_id tidak valid: {modal_custom_id}")
-            return
 
-        # Get reason from modal data
-        try:
-            reason = interaction.data["components"][0]["components"][0]["value"]
-            logger.info(f"Modal create_ticket disubmit oleh: {interaction.user} (ID: {interaction.user.id}). Alasan: {reason}")
-        except (KeyError, IndexError) as e:
-            logger.warning(f"Error saat mengambil alasan ticket dari {interaction.user}: {str(e)}")
-            reason = "Tidak ada alasan yang diberikan"
-        
-        settings = self.db.get_guild_settings(interaction.guild_id)
-        
-        # Create a mock context object for create_ticket_channel
-        class MockContext:
-            def __init__(self, interaction):
-                self.guild = interaction.guild
-                self.author = interaction.user
-                self.send = interaction.followup.send
-        
-        mock_ctx = MockContext(interaction)
-        
-        # Create ticket channel
-        try:
-            channel = await self.create_ticket_channel(mock_ctx, reason, settings)
-            if not channel:
-                logger.error(f"Gagal membuat ticket untuk {interaction.user} (ID: {interaction.user.id})")
-                await interaction.response.send_message(
-                    embed=TicketEmbeds.error_embed("Gagal membuat tiket"),
-                    ephemeral=True
-                )
-                return
-
-            # Send initial message with ticket view
-            embed = TicketEmbeds.ticket_created(interaction.user, reason)
-            view = TicketView(self.active_tickets[channel.id])
-            
-            # Register view sebagai persistent
-            self.bot.add_view(view)
-            
-            await channel.send(embed=embed, view=view)
-            
-            logger.info(f"Ticket berhasil dibuat oleh {interaction.user} di channel {channel.name}")
-            await interaction.response.send_message(
-                embed=TicketEmbeds.success_embed(f"Tiket berhasil dibuat di {channel.mention}"),
-                ephemeral=True
-            )
-        except Exception as e:
-            logger.error(f"Error saat membuat ticket: {str(e)}")
-            await interaction.response.send_message(
-                embed=TicketEmbeds.error_embed("Terjadi kesalahan saat membuat tiket"),
-                ephemeral=True
-            )
-    
     async def register_persistent_views(self):
         """Register persistent views untuk memastikan views tetap aktif setelah restart"""
         try:
