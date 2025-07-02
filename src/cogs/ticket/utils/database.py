@@ -343,3 +343,64 @@ class TicketDB:
         finally:
             if conn:
                 conn.close()
+
+    def get_expired_tickets(self) -> List[Dict]:
+        """Get tickets that should be auto-closed"""
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT t.id, t.guild_id, t.channel_id, t.user_id, t.reason, t.created_at,
+                       ts.auto_close_hours
+                FROM tickets t
+                JOIN ticket_settings ts ON t.guild_id = ts.guild_id
+                WHERE t.status = 'open' 
+                AND ts.auto_close_hours > 0
+                AND datetime(t.created_at, '+' || ts.auto_close_hours || ' hours') <= datetime('now')
+            """)
+            
+            return [dict(row) for row in cursor.fetchall()]
+
+        except sqlite3.Error as e:
+            logger.error(f"Error getting expired tickets: {e}")
+            return []
+        finally:
+            if conn:
+                conn.close()
+
+    def auto_close_ticket(self, ticket_id: int) -> bool:
+        """Auto-close a ticket due to timeout"""
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                UPDATE tickets 
+                SET status = 'closed', 
+                    closed_at = CURRENT_TIMESTAMP,
+                    closed_by = 'AUTO_CLOSE'
+                WHERE id = ? AND status = 'open'
+            """, (ticket_id,))
+
+            # Log auto-closure (optional - skip if admin_logs table doesn't exist)
+            try:
+                cursor.execute("""
+                    INSERT INTO admin_logs (admin_id, action, target, details)
+                    VALUES (?, ?, ?, ?)
+                """, ('SYSTEM', 'ticket_auto_close', str(ticket_id), f"Ticket {ticket_id} auto-closed due to timeout"))
+            except sqlite3.Error:
+                # admin_logs table doesn't exist, skip logging
+                pass
+
+            conn.commit()
+            return cursor.rowcount > 0
+
+        except sqlite3.Error as e:
+            logger.error(f"Error auto-closing ticket: {e}")
+            if conn:
+                conn.rollback()
+            return False
+        finally:
+            if conn:
+                conn.close()
