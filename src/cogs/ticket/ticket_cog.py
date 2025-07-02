@@ -420,8 +420,9 @@ class TicketSystem(commands.Cog):
             return
             
         # Pastikan custom_id ada dan sesuai
-        if not getattr(interaction, 'custom_id', None) or interaction.custom_id != "create_ticket":
-            logger.warning(f"Modal submit dari {interaction.user} memiliki custom_id tidak valid")
+        modal_custom_id = interaction.data.get('custom_id')
+        if not modal_custom_id or modal_custom_id != "create_ticket":
+            logger.warning(f"Modal submit dari {interaction.user} memiliki custom_id tidak valid: {modal_custom_id}")
             return
 
         # Get reason from modal data

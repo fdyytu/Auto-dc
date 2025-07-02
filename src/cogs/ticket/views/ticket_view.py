@@ -27,7 +27,8 @@ class TicketView(View):
     
     async def close_ticket_callback(self, interaction: discord.Interaction):
         """Handle close ticket button click"""
-        logger.info(f"Close ticket button clicked by {interaction.user} (custom_id: {interaction.custom_id})")
+        custom_id = interaction.data.get('custom_id', 'unknown')
+        logger.info(f"Close ticket button clicked by {interaction.user} (custom_id: {custom_id})")
         # The actual handling will be done by the cog's on_interaction listener
 
 class TicketControlView(View):
@@ -43,7 +44,7 @@ class TicketControlView(View):
     async def create_ticket_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Handle create ticket button click"""
         # This will be handled by the cog's on_interaction listener
-        logger.info(f"Create ticket button clicked by {interaction.user} (custom_id: {interaction.custom_id})")
+        logger.info(f"Create ticket button clicked by {interaction.user} (custom_id: {button.custom_id})")
 
 class TicketConfirmView(View):
     def __init__(self):
@@ -57,7 +58,7 @@ class TicketConfirmView(View):
     )
     async def confirm_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Handle confirm button click"""
-        logger.info(f"Confirm ticket button clicked by {interaction.user} (custom_id: {interaction.custom_id})")
+        logger.info(f"Confirm ticket button clicked by {interaction.user} (custom_id: {button.custom_id})")
     
     @discord.ui.button(
         style=discord.ButtonStyle.danger,
@@ -67,4 +68,4 @@ class TicketConfirmView(View):
     )
     async def cancel_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Handle cancel button click"""
-        logger.info(f"Cancel ticket button clicked by {interaction.user} (custom_id: {interaction.custom_id})")
+        logger.info(f"Cancel ticket button clicked by {interaction.user} (custom_id: {button.custom_id})")
