@@ -45,6 +45,7 @@ class TicketControlView(View):
         """Handle create ticket button click"""
         # This will be handled by the cog's on_interaction listener
         logger.info(f"Create ticket button clicked by {interaction.user} (custom_id: {button.custom_id})")
+        # Don't respond here - let the cog's on_interaction listener handle it
 
 class TicketConfirmView(View):
     def __init__(self):
