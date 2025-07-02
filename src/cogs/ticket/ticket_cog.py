@@ -4,7 +4,7 @@ Main entry point for the ticket system
 """
 
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 import asyncio
 import logging
 from datetime import datetime
@@ -25,6 +25,9 @@ class TicketSystem(commands.Cog):
         self.active_tickets = {}
         self.db.setup_tables()
         self._auto_setup_done = False
+        
+        # Start auto-close task
+        self.auto_close_task.start()
     
     async def auto_setup_ticket_system(self):
         """Auto-setup ticket system from bot config"""
@@ -103,7 +106,15 @@ class TicketSystem(commands.Cog):
 
             # Get or create category
             category_id = settings.get('category_id')
-            category = ctx.guild.get_channel(int(category_id)) if category_id else None
+            category = None
+            
+            if category_id:
+                channel_obj = ctx.guild.get_channel(int(category_id))
+                # Pastikan channel adalah CategoryChannel, bukan TextChannel
+                if channel_obj and isinstance(channel_obj, discord.CategoryChannel):
+                    category = channel_obj
+                else:
+                    logger.warning(f"Channel dengan ID {category_id} bukan kategori atau tidak ditemukan")
             
             if not category:
                 logger.info(f"Membuat kategori ticket baru untuk guild {ctx.guild.name}")
@@ -467,6 +478,123 @@ class TicketSystem(commands.Cog):
         await self.auto_setup_ticket_system()
         
         await ctx.send("✅ Auto-setup ticket system selesai!")
+
+    @tasks.loop(hours=1)  # Cek setiap jam
+    async def auto_close_task(self):
+        """Background task untuk auto-close ticket yang sudah expired"""
+        try:
+            expired_tickets = self.db.get_expired_tickets()
+            
+            if not expired_tickets:
+                return
+                
+            logger.info(f"🔍 Ditemukan {len(expired_tickets)} ticket yang perlu ditutup otomatis")
+            
+            for ticket in expired_tickets:
+                try:
+                    guild = self.bot.get_guild(int(ticket['guild_id']))
+                    if not guild:
+                        logger.warning(f"Guild {ticket['guild_id']} tidak ditemukan untuk ticket {ticket['id']}")
+                        continue
+                        
+                    channel = guild.get_channel(int(ticket['channel_id']))
+                    if not channel:
+                        logger.warning(f"Channel {ticket['channel_id']} tidak ditemukan untuk ticket {ticket['id']}")
+                        # Tutup ticket di database meskipun channel tidak ada
+                        self.db.auto_close_ticket(ticket['id'])
+                        continue
+                    
+                    # Kirim pesan peringatan sebelum menutup
+                    embed = discord.Embed(
+                        title="🕐 Ticket Auto-Close",
+                        description=f"Ticket ini akan ditutup otomatis karena tidak ada aktivitas selama {ticket['auto_close_hours']} jam.",
+                        color=discord.Color.orange()
+                    )
+                    embed.add_field(
+                        name="📝 Alasan Ticket",
+                        value=ticket['reason'] or "Tidak ada alasan",
+                        inline=False
+                    )
+                    embed.add_field(
+                        name="⏰ Dibuat pada",
+                        value=ticket['created_at'],
+                        inline=True
+                    )
+                    
+                    await channel.send(embed=embed)
+                    await asyncio.sleep(2)
+                    
+                    # Tutup ticket di database
+                    if self.db.auto_close_ticket(ticket['id']):
+                        logger.info(f"✅ Ticket {ticket['id']} berhasil ditutup otomatis")
+                        
+                        # Hapus dari active_tickets jika ada
+                        if channel.id in self.active_tickets:
+                            del self.active_tickets[channel.id]
+                        
+                        # Hapus channel
+                        await channel.delete()
+                        logger.info(f"🗑️ Channel {channel.name} berhasil dihapus")
+                    else:
+                        logger.error(f"❌ Gagal menutup ticket {ticket['id']} di database")
+                        
+                except Exception as e:
+                    logger.error(f"❌ Error saat auto-close ticket {ticket['id']}: {e}")
+                    
+        except Exception as e:
+            logger.error(f"❌ Error dalam auto_close_task: {e}")
+
+    @auto_close_task.before_loop
+    async def before_auto_close_task(self):
+        """Wait until bot is ready before starting auto-close task"""
+        await self.bot.wait_until_ready()
+        logger.info("🚀 Auto-close task dimulai")
+
+    def cog_unload(self):
+        """Cleanup saat cog di-unload"""
+        self.auto_close_task.cancel()
+        logger.info("🛑 Auto-close task dihentikan")
+
+    @ticket.command(name="settings")
+    @commands.has_permissions(administrator=True)
+    async def ticket_settings(self, ctx, auto_close_hours: int = None):
+        """Atur pengaturan ticket termasuk auto-close timer"""
+        if auto_close_hours is not None:
+            if auto_close_hours < 0:
+                await ctx.send(embed=TicketEmbeds.error_embed("Auto-close hours tidak boleh negatif. Gunakan 0 untuk menonaktifkan auto-close."))
+                return
+                
+            if self.db.update_settings(str(ctx.guild.id), 'auto_close_hours', str(auto_close_hours)):
+                if auto_close_hours == 0:
+                    await ctx.send(embed=TicketEmbeds.success_embed("✅ Auto-close ticket dinonaktifkan"))
+                else:
+                    await ctx.send(embed=TicketEmbeds.success_embed(f"✅ Auto-close ticket diatur ke {auto_close_hours} jam"))
+            else:
+                await ctx.send(embed=TicketEmbeds.error_embed("❌ Gagal mengupdate pengaturan"))
+        else:
+            # Tampilkan pengaturan saat ini
+            settings = self.db.get_guild_settings(ctx.guild.id)
+            embed = discord.Embed(
+                title="🎫 Pengaturan Ticket",
+                color=discord.Color.blue()
+            )
+            embed.add_field(
+                name="⏰ Auto-Close",
+                value=f"{settings.get('auto_close_hours', 48)} jam" if settings.get('auto_close_hours', 48) > 0 else "Dinonaktifkan",
+                inline=True
+            )
+            embed.add_field(
+                name="🎯 Max Tickets per User",
+                value=settings.get('max_tickets', 1),
+                inline=True
+            )
+            embed.add_field(
+                name="📝 Format Ticket",
+                value=settings.get('ticket_format', 'ticket-{user}-{number}'),
+                inline=False
+            )
+            
+            await ctx.send(embed=embed)
 
 async def setup(bot):
     """Setup the Ticket cog"""
