@@ -419,9 +419,306 @@ def admin():
     """Halaman admin"""
     return render_template('dashboard.html')
 
+# Payment API Endpoints
+@app.route('/api/payments', methods=['POST'])
+def create_payment():
+    """API endpoint untuk membuat pembayaran baru"""
+    try:
+        data = request.get_json()
+        tenant_id = data.get('tenant_id')
+        discord_id = data.get('discord_id')
+        amount = data.get('amount', 0.0)
+        method = data.get('method', 'credit_card')
+        description = data.get('description', '')
+        
+        if not tenant_id or not discord_id:
+            return jsonify({
+                'success': False,
+                'error': 'Tenant ID dan Discord ID diperlukan',
+                'message': 'Data tidak lengkap'
+            }), 400
+        
+        # Generate transaction ID
+        transaction_id = f"pay_{uuid.uuid4().hex[:12]}"
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Insert payment
+        cursor.execute("""
+            INSERT INTO payments 
+            (tenant_id, discord_id, amount, currency, method, status, transaction_id, description, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            tenant_id, discord_id, amount, 'USD', method, 'pending', 
+            transaction_id, description, 
+            datetime.utcnow().isoformat(), datetime.utcnow().isoformat()
+        ))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'transaction_id': transaction_id,
+                'amount': amount,
+                'status': 'pending'
+            },
+            'message': 'Pembayaran berhasil dibuat'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': 'Gagal membuat pembayaran'
+        }), 500
+
+@app.route('/api/payments/<transaction_id>/status', methods=['PUT'])
+def update_payment_status(transaction_id):
+    """API endpoint untuk update status pembayaran"""
+    try:
+        data = request.get_json()
+        status = data.get('status')
+        
+        if not status:
+            return jsonify({
+                'success': False,
+                'error': 'Status diperlukan',
+                'message': 'Status tidak boleh kosong'
+            }), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "UPDATE payments SET status = ?, updated_at = ? WHERE transaction_id = ?",
+            (status, datetime.utcnow().isoformat(), transaction_id)
+        )
+        
+        if cursor.rowcount == 0:
+            conn.close()
+            return jsonify({
+                'success': False,
+                'error': 'Pembayaran tidak ditemukan',
+                'message': f'Tidak ada pembayaran dengan ID {transaction_id}'
+            }), 404
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'data': {'transaction_id': transaction_id, 'status': status},
+            'message': 'Status pembayaran berhasil diupdate'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': 'Gagal update status pembayaran'
+        }), 500
+
+# Bot Management API Endpoints
+@app.route('/api/bots', methods=['POST'])
+def create_bot_instance():
+    """API endpoint untuk membuat bot instance baru"""
+    try:
+        data = request.get_json()
+        tenant_id = data.get('tenant_id')
+        bot_token = data.get('bot_token')
+        guild_id = data.get('guild_id')
+        
+        if not all([tenant_id, bot_token, guild_id]):
+            return jsonify({
+                'success': False,
+                'error': 'Data tidak lengkap',
+                'message': 'Tenant ID, bot token, dan guild ID diperlukan'
+            }), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Cek apakah bot instance sudah ada
+        cursor.execute("SELECT id FROM bot_instances WHERE tenant_id = ?", (tenant_id,))
+        if cursor.fetchone():
+            conn.close()
+            return jsonify({
+                'success': False,
+                'error': 'Bot instance sudah ada',
+                'message': f'Bot instance untuk tenant {tenant_id} sudah ada'
+            }), 400
+        
+        # Insert bot instance
+        cursor.execute("""
+            INSERT INTO bot_instances 
+            (tenant_id, bot_token, guild_id, status, config, restart_count, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            tenant_id, bot_token, guild_id, 'stopped', 
+            '{"prefix": "!", "features": {"moderation": true, "economy": true}}',
+            0, datetime.utcnow().isoformat(), datetime.utcnow().isoformat()
+        ))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'tenant_id': tenant_id,
+                'guild_id': guild_id,
+                'status': 'stopped'
+            },
+            'message': 'Bot instance berhasil dibuat'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': 'Gagal membuat bot instance'
+        }), 500
+
+@app.route('/api/bots/<tenant_id>', methods=['GET'])
+def get_bot_instance(tenant_id):
+    """API endpoint untuk mendapatkan bot instance"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT * FROM bot_instances WHERE tenant_id = ?", (tenant_id,))
+        row = cursor.fetchone()
+        
+        if not row:
+            conn.close()
+            return jsonify({
+                'success': False,
+                'error': 'Bot instance tidak ditemukan',
+                'message': f'Tidak ada bot instance untuk tenant {tenant_id}'
+            }), 404
+        
+        bot_data = dict(row)
+        try:
+            bot_data['config'] = json.loads(bot_data['config']) if bot_data['config'] else {}
+        except:
+            bot_data['config'] = {}
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'data': bot_data,
+            'message': 'Bot instance berhasil ditemukan'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': 'Gagal mengambil bot instance'
+        }), 500
+
+@app.route('/api/bots/<tenant_id>/status', methods=['PUT'])
+def update_bot_status(tenant_id):
+    """API endpoint untuk update status bot instance"""
+    try:
+        data = request.get_json()
+        status = data.get('status')
+        
+        if not status:
+            return jsonify({
+                'success': False,
+                'error': 'Status diperlukan',
+                'message': 'Status tidak boleh kosong'
+            }), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "UPDATE bot_instances SET status = ?, updated_at = ? WHERE tenant_id = ?",
+            (status, datetime.utcnow().isoformat(), tenant_id)
+        )
+        
+        if cursor.rowcount == 0:
+            conn.close()
+            return jsonify({
+                'success': False,
+                'error': 'Bot instance tidak ditemukan',
+                'message': f'Tidak ada bot instance untuk tenant {tenant_id}'
+            }), 404
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'data': {'tenant_id': tenant_id, 'status': status},
+            'message': 'Status bot berhasil diupdate'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': 'Gagal update status bot'
+        }), 500
+
+@app.route('/bot-management')
+def bot_management():
+    """Halaman manajemen bot"""
+    return render_template('bot_management.html')
+
 if __name__ == '__main__':
     # Initialize database
     init_database()
+    
+    # Create additional tables for payments and bot instances
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    # Create payments table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tenant_id TEXT NOT NULL,
+            discord_id TEXT NOT NULL,
+            amount REAL NOT NULL,
+            currency TEXT DEFAULT 'USD',
+            method TEXT NOT NULL,
+            status TEXT NOT NULL,
+            transaction_id TEXT UNIQUE NOT NULL,
+            gateway_response TEXT,
+            description TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+    """)
+    
+    # Create bot_instances table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS bot_instances (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tenant_id TEXT UNIQUE NOT NULL,
+            bot_token TEXT NOT NULL,
+            guild_id TEXT NOT NULL,
+            status TEXT NOT NULL,
+            process_id INTEGER,
+            port INTEGER,
+            config TEXT,
+            last_heartbeat TEXT,
+            error_message TEXT,
+            restart_count INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+    """)
+    
+    conn.commit()
+    conn.close()
     
     # Run Flask app
     app.run(host='0.0.0.0', port=5000, debug=True)
