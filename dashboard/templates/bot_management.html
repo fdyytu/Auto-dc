@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bot Management - Multi-Tenant Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .card-hover { transition: all 0.3s ease; }
+        .card-hover:hover { transform: translateY(-5px); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
+        .status-running { color: #10b981; }
+        .status-stopped { color: #ef4444; }
+        .status-starting { color: #f59e0b; }
+        .status-error { color: #dc2626; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Navigation -->
+    <nav class="gradient-bg shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <i class="fas fa-robot text-white text-2xl mr-3"></i>
+                    <h1 class="text-white text-xl font-bold">Bot Management Dashboard</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <a href="/" class="text-white hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">
+                        <i class="fas fa-home mr-1"></i> Dashboard
+                    </a>
+                    <a href="/plans" class="text-white hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">
+                        <i class="fas fa-tags mr-1"></i> Paket
+                    </a>
+                    <a href="/admin" class="text-white hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">
+                        <i class="fas fa-cog mr-1"></i> Admin
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <h2 class="text-3xl font-bold text-gray-900">Manajemen Bot Instances</h2>
+            <p class="mt-2 text-gray-600">Kelola bot instances untuk setiap tenant</p>
+        </div>
+
+        <!-- Create Bot Instance Form -->
+        <div class="bg-white shadow rounded-lg mb-8">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900">
+                    <i class="fas fa-plus-circle mr-2"></i>Buat Bot Instance Baru
+                </h3>
+            </div>
+            <div class="p-6">
+                <form id="create-bot-form" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Tenant ID</label>
+                        <input type="text" id="tenant-id" required 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                               placeholder="tenant_12345678">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Bot Token</label>
+                        <input type="password" id="bot-token" required 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                               placeholder="Bot token Discord">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Guild ID</label>
+                        <input type="text" id="guild-id" required 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                               placeholder="Discord server ID">
+                    </div>
+                    <div class="flex items-end">
+                        <button type="submit" 
+                                class="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <i class="fas fa-plus mr-2"></i>Buat Bot
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Bot Instances Table -->
+        <div class="bg-white shadow rounded-lg">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900">
+                    <i class="fas fa-list mr-2"></i>Daftar Bot Instances
+                </h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Tenant ID
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Guild ID
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Status
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Port
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Process ID
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Last Heartbeat
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Actions
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="bot-instances-tbody" class="bg-white divide-y divide-gray-200">
+                        <!-- Bot instances akan dimuat di sini -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Bot Details Modal -->
+        <div id="bot-details-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden">
+            <div class="flex items-center justify-center min-h-screen">
+                <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h3 class="text-lg font-medium text-gray-900">Detail Bot Instance</h3>
+                    </div>
+                    <div id="bot-details-content" class="p-6">
+                        <!-- Content akan dimuat di sini -->
+                    </div>
+                    <div class="px-6 py-4 border-t border-gray-200 flex justify-end">
+                        <button onclick="closeBotDetailsModal()" 
+                                class="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400">
+                            Tutup
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Load bot instances on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadBotInstances();
+        });
+
+        // Create bot instance
+        document.getElementById('create-bot-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const tenantId = document.getElementById('tenant-id').value;
+            const botToken = document.getElementById('bot-token').value;
+            const guildId = document.getElementById('guild-id').value;
+            
+            try {
+                const response = await fetch('/api/bots', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        tenant_id: tenantId,
+                        bot_token: botToken,
+                        guild_id: guildId
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('Bot instance berhasil dibuat!');
+                    document.getElementById('create-bot-form').reset();
+                    loadBotInstances();
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        });
+
+        // Load bot instances
+        async function loadBotInstances() {
+            try {
+                // Untuk demo, kita akan load dari subscription yang ada
+                const response = await fetch('/api/subscriptions');
+                const result = await response.json();
+                
+                const tbody = document.getElementById('bot-instances-tbody');
+                tbody.innerHTML = '';
+                
+                if (result.success && result.data.length > 0) {
+                    for (const sub of result.data) {
+                        // Cek apakah ada bot instance untuk tenant ini
+                        try {
+                            const botResponse = await fetch(`/api/bots/${sub.tenant_id}`);
+                            const botResult = await botResponse.json();
+                            
+                            if (botResult.success) {
+                                const bot = botResult.data;
+                                const row = document.createElement('tr');
+                                row.innerHTML = `
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                        ${bot.tenant_id}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        ${bot.guild_id}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full status-${bot.status}">
+                                            ${bot.status.toUpperCase()}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        ${bot.port || 'N/A'}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        ${bot.process_id || 'N/A'}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        ${bot.last_heartbeat ? new Date(bot.last_heartbeat).toLocaleString() : 'N/A'}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                        <button onclick="updateBotStatus('${bot.tenant_id}', 'running')" 
+                                                class="text-green-600 hover:text-green-900 mr-2">Start</button>
+                                        <button onclick="updateBotStatus('${bot.tenant_id}', 'stopped')" 
+                                                class="text-red-600 hover:text-red-900 mr-2">Stop</button>
+                                        <button onclick="showBotDetails('${bot.tenant_id}')" 
+                                                class="text-blue-600 hover:text-blue-900">Details</button>
+                                    </td>
+                                `;
+                                tbody.appendChild(row);
+                            }
+                        } catch (error) {
+                            // Bot instance belum ada untuk tenant ini
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                    ${sub.tenant_id}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    -
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
+                                        NOT CREATED
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">-</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">-</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">-</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <span class="text-gray-400">Buat bot instance terlebih dahulu</span>
+                                </td>
+                            `;
+                            tbody.appendChild(row);
+                        }
+                    }
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center text-gray-500">Tidak ada data bot instances</td></tr>';
+                }
+            } catch (error) {
+                console.error('Error loading bot instances:', error);
+            }
+        }
+
+        // Update bot status
+        async function updateBotStatus(tenantId, status) {
+            try {
+                const response = await fetch(`/api/bots/${tenantId}/status`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ status: status })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`Bot ${status === 'running' ? 'started' : 'stopped'} successfully!`);
+                    loadBotInstances();
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        // Show bot details
+        async function showBotDetails(tenantId) {
+            try {
+                const response = await fetch(`/api/bots/${tenantId}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    const bot = result.data;
+                    const content = document.getElementById('bot-details-content');
+                    content.innerHTML = `
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Tenant ID</label>
+                                <p class="mt-1 text-sm text-gray-900">${bot.tenant_id}</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Guild ID</label>
+                                <p class="mt-1 text-sm text-gray-900">${bot.guild_id}</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Status</label>
+                                <p class="mt-1 text-sm text-gray-900">${bot.status}</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Port</label>
+                                <p class="mt-1 text-sm text-gray-900">${bot.port || 'N/A'}</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Process ID</label>
+                                <p class="mt-1 text-sm text-gray-900">${bot.process_id || 'N/A'}</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Restart Count</label>
+                                <p class="mt-1 text-sm text-gray-900">${bot.restart_count}</p>
+                            </div>
+                            <div class="col-span-2">
+                                <label class="block text-sm font-medium text-gray-700">Configuration</label>
+                                <pre class="mt-1 text-sm text-gray-900 bg-gray-100 p-2 rounded">${JSON.stringify(bot.config, null, 2)}</pre>
+                            </div>
+                            ${bot.error_message ? `
+                            <div class="col-span-2">
+                                <label class="block text-sm font-medium text-gray-700">Error Message</label>
+                                <p class="mt-1 text-sm text-red-600">${bot.error_message}</p>
+                            </div>
+                            ` : ''}
+                        </div>
+                    `;
+                    document.getElementById('bot-details-modal').classList.remove('hidden');
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        // Close bot details modal
+        function closeBotDetailsModal() {
+            document.getElementById('bot-details-modal').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
