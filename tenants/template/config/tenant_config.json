@@ -1,0 +1,65 @@
+{
+    "tenant_info": {
+        "tenant_id": "",
+        "discord_id": "",
+        "guild_id": "",
+        "bot_token": "",
+        "created_at": "",
+        "status": "inactive"
+    },
+    "bot_config": {
+        "prefix": "!",
+        "activity": {
+            "type": "watching",
+            "name": "Growtopia Shop 🏪"
+        },
+        "intents": {
+            "message_content": true,
+            "members": true,
+            "guilds": true
+        }
+    },
+    "channels": {
+        "welcome": "",
+        "ticket_category": "",
+        "ticket_channel": "",
+        "giveaway": "",
+        "leveling": "",
+        "reminder": "",
+        "music": "",
+        "logs": "",
+        "live_stock": "",
+        "purchase_log": "",
+        "donation_log": "",
+        "history_buy": ""
+    },
+    "roles": {
+        "support": "",
+        "giveaway_manager": "",
+        "dj": "",
+        "admin": "",
+        "moderator": ""
+    },
+    "features": {
+        "live_stock": true,
+        "ticket_system": true,
+        "leveling": true,
+        "reputation": true,
+        "donation": true,
+        "automod": true,
+        "music": false
+    },
+    "cooldowns": {
+        "default": 3,
+        "shop": 5,
+        "buy": 3,
+        "sell": 3,
+        "daily": 86400,
+        "weekly": 604800
+    },
+    "rate_limits": {
+        "global": [5, 5],
+        "user": [3, 5],
+        "channel": [10, 5]
+    }
+}
