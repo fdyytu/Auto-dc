@@ -20,52 +20,66 @@ class TenantConfigService(BaseService):
         super().__init__(db_manager)
         self.tenant_repo = TenantRepository(db_manager)
         self.product_repo = TenantProductRepository(db_manager)
-    
-    async def update_channels(self, tenant_id: str, channels: Dict[str, str]) -> ServiceResponse:
-        """Update channel configuration untuk tenant"""
+
+    async def get_tenant_configuration(self, tenant_id: str) -> ServiceResponse:
+        """Ambil konfigurasi tenant dari database tenant_configurations"""
         try:
-            tenant = await self.tenant_repo.get_tenant_by_id(tenant_id)
-            if not tenant:
+            query = "SELECT * FROM tenant_configurations WHERE tenant_id = ?"
+            result = await self.db_manager.execute_query(query, (tenant_id,))
+            if not result:
                 return ServiceResponse.error_response(
-                    error="Tenant tidak ditemukan",
-                    message=f"Tenant {tenant_id} tidak ditemukan"
+                    error="Konfigurasi tenant tidak ditemukan",
+                    message=f"Konfigurasi untuk tenant {tenant_id} tidak ditemukan"
                 )
-            
-            # Validasi channel IDs
-            valid_channels = ['live_stock', 'purchase_log', 'donation_log', 'ticket_category']
-            for channel_key in channels.keys():
-                if channel_key not in valid_channels:
-                    return ServiceResponse.error_response(
-                        error="Channel tidak valid",
-                        message=f"Channel {channel_key} tidak dikenali"
-                    )
-            
-            # Update channels
-            tenant.channels.update(channels)
-            tenant.updated_at = datetime.utcnow()
-            
-            config_data = {
-                'features': tenant.features,
-                'channels': tenant.channels,
-                'permissions': tenant.permissions,
-                'bot_config': tenant.bot_config,
-                'updated_at': tenant.updated_at.isoformat()
+            row = result[0]
+            config = {
+                "tenant_id": row["tenant_id"],
+                "bot_token": row["bot_token"],
+                "donation_channel_id": row["donation_channel_id"],
+                "other_channel_ids": row["other_channel_ids"],
+                "created_at": row["created_at"],
+                "updated_at": row["updated_at"],
             }
-            
-            success = await self.tenant_repo.update_tenant_config(tenant_id, config_data)
-            if not success:
-                return ServiceResponse.error_response(
-                    error="Gagal update channels",
-                    message="Gagal menyimpan konfigurasi channel"
-                )
-            
-            return ServiceResponse.success_response(
-                data={'channels': tenant.channels},
-                message="Konfigurasi channel berhasil diupdate"
-            )
-            
+            return ServiceResponse.success_response(data=config, message="Konfigurasi tenant berhasil diambil")
         except Exception as e:
-            return self._handle_exception(e, "update channel configuration")
+            return self._handle_exception(e, "mengambil konfigurasi tenant dari database")
+
+    async def update_tenant_configuration(self, tenant_id: str, config_data: Dict[str, Any]) -> ServiceResponse:
+        """Update konfigurasi tenant di database tenant_configurations"""
+        try:
+            now = datetime.utcnow().isoformat()
+            query_check = "SELECT id FROM tenant_configurations WHERE tenant_id = ?"
+            result = await self.db_manager.execute_query(query_check, (tenant_id,))
+            if result:
+                query_update = """
+                    UPDATE tenant_configurations
+                    SET bot_token = ?, donation_channel_id = ?, other_channel_ids = ?, updated_at = ?
+                    WHERE tenant_id = ?
+                """
+                await self.db_manager.execute_update(query_update, (
+                    config_data.get("bot_token"),
+                    config_data.get("donation_channel_id"),
+                    config_data.get("other_channel_ids"),
+                    now,
+                    tenant_id
+                ))
+            else:
+                query_insert = """
+                    INSERT INTO tenant_configurations
+                    (tenant_id, bot_token, donation_channel_id, other_channel_ids, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """
+                await self.db_manager.execute_update(query_insert, (
+                    tenant_id,
+                    config_data.get("bot_token"),
+                    config_data.get("donation_channel_id"),
+                    config_data.get("other_channel_ids"),
+                    now,
+                    now
+                ))
+            return ServiceResponse.success_response(message="Konfigurasi tenant berhasil diupdate")
+        except Exception as e:
+            return self._handle_exception(e, "mengupdate konfigurasi tenant di database")
     
     async def update_permissions(self, tenant_id: str, permissions: Dict[str, bool]) -> ServiceResponse:
         """Update permissions untuk tenant"""
