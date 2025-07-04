@@ -1,266 +1,161 @@
+#!/usr/bin/env python3
 """
-Test comprehensive bot functionality after database fixes
+Test Script untuk Bot Functionality
+Test fungsionalitas kritis bot tanpa perlu koneksi Discord
 """
 
-import sqlite3
-import os
+import sys
+import asyncio
+import logging
+from pathlib import Path
 
-def test_addbal_functionality():
-    """Test !addbal command functionality simulation"""
-    print("🔄 Testing !addbal command functionality...")
-    
+# Add project root to Python path
+project_root = Path(__file__).parent
+sys.path.append(str(project_root))
+sys.path.append(str(project_root / "src"))
+
+from src.services.tenant_service import TenantService
+from src.database.connection import DatabaseManager
+from src.bot.config import config_manager
+
+async def test_config_loading():
+    """Test loading konfigurasi bot"""
+    print("🔧 Testing config loading...")
     try:
-        # Connect to database
-        db_path = 'shop.db'
-        if not os.path.exists(db_path):
-            print("❌ Database file tidak ditemukan!")
-            return False
-            
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        
-        # Simulate user registration first
-        cursor.execute("""
-            INSERT OR REPLACE INTO users 
-            (growid, balance_wl, balance_dl, balance_bgl)
-            VALUES (?, ?, ?, ?)
-        """, ("Fdy", 0, 0, 0))
-        
-        # Simulate !addbal Fdy 100 command
-        old_balance = "0|0|0"
-        new_balance = "100|0|0"
-        
-        # Update user balance
-        cursor.execute("""
-            UPDATE users 
-            SET balance_wl = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE growid = ?
-        """, (100, "Fdy"))
-        
-        # Insert transaction record (this is what was failing before)
-        cursor.execute("""
-            INSERT INTO balance_transactions 
-            (growid, type, details, old_balance, new_balance)
-            VALUES (?, ?, ?, ?, ?)
-        """, ("Fdy", "admin_add", "Admin added 100 WL", old_balance, new_balance))
-        
-        # Verify the transaction was recorded
-        cursor.execute("""
-            SELECT * FROM balance_transactions 
-            WHERE growid = ? AND type = ?
-            ORDER BY created_at DESC LIMIT 1
-        """, ("Fdy", "admin_add"))
-        
-        result = cursor.fetchone()
-        conn.commit()
-        conn.close()
-        
-        if result:
-            print("✅ !addbal command simulation berhasil!")
-            print(f"   - User: {result[1]}")
-            print(f"   - Type: {result[2]}")
-            print(f"   - Details: {result[3]}")
-            print(f"   - Old Balance: {result[4]}")
-            print(f"   - New Balance: {result[5]}")
-            return True
-        else:
-            print("❌ !addbal command simulation gagal!")
-            return False
-            
+        config = config_manager.load_config()
+        assert config is not None
+        assert 'token' in config
+        assert 'guild_id' in config
+        print("✅ Config loading: PASSED")
+        return True
     except Exception as e:
-        print(f"❌ Error testing !addbal: {e}")
+        print(f"❌ Config loading: FAILED - {e}")
         return False
 
-def test_history_button_functionality():
-    """Test history button functionality simulation"""
-    print("🔄 Testing history button functionality...")
-    
+async def test_database_connection():
+    """Test koneksi database"""
+    print("🗄️ Testing database connection...")
     try:
-        conn = sqlite3.connect('shop.db')
-        cursor = conn.cursor()
-        
-        # Add some test transaction history
-        test_transactions = [
-            ("Fdy", "purchase", "Bought DIRT", "100|0|0", "90|0|0"),
-            ("Fdy", "deposit", "Deposited 50 WL", "90|0|0", "140|0|0"),
-            ("Fdy", "withdrawal", "Withdrew 20 WL", "140|0|0", "120|0|0")
-        ]
-        
-        for trx in test_transactions:
-            cursor.execute("""
-                INSERT INTO balance_transactions 
-                (growid, type, details, old_balance, new_balance)
-                VALUES (?, ?, ?, ?, ?)
-            """, trx)
-        
-        # Simulate get_user_transactions call
-        cursor.execute("""
-            SELECT * FROM balance_transactions 
-            WHERE growid = ? 
-            ORDER BY created_at DESC 
-            LIMIT 10
-        """, ("Fdy",))
-        
-        transactions = cursor.fetchall()
-        conn.commit()
-        conn.close()
-        
-        if transactions and len(transactions) >= 3:
-            print("✅ History button simulation berhasil!")
-            print(f"   - Found {len(transactions)} transactions")
-            for i, trx in enumerate(transactions[:3]):
-                print(f"   - Transaction {i+1}: {trx[2]} - {trx[3]}")
+        db_manager = DatabaseManager()
+        success = await db_manager.initialize()
+        if success:
+            print("✅ Database connection: PASSED")
+            await db_manager.close()
             return True
         else:
-            print("❌ History button simulation gagal!")
+            print("❌ Database connection: FAILED")
             return False
-            
     except Exception as e:
-        print(f"❌ Error testing history button: {e}")
+        print(f"❌ Database connection: FAILED - {e}")
         return False
 
-def test_world_info_button_functionality():
-    """Test world info button functionality simulation"""
-    print("🔄 Testing world info button functionality...")
-    
+async def test_tenant_service():
+    """Test tenant service functionality"""
+    print("🏢 Testing tenant service...")
     try:
-        conn = sqlite3.connect('shop.db')
-        cursor = conn.cursor()
+        db_manager = DatabaseManager()
+        await db_manager.initialize()
         
-        # Simulate world info button click
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS world_info (
-                id INTEGER PRIMARY KEY,
-                world TEXT NOT NULL,
-                owner TEXT NOT NULL,
-                bot TEXT NOT NULL,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
+        tenant_service = TenantService(db_manager)
         
-        # Insert test data
-        cursor.execute("""
-            INSERT OR REPLACE INTO world_info 
-            (id, world, owner, bot)
-            VALUES (?, ?, ?, ?)
-        """, (1, "BUYWORLD", "OWNER123", "BOTNAME"))
+        # Test folder path methods
+        tenant_path = tenant_service._get_tenant_folder_path("test_tenant")
+        template_path = tenant_service._get_template_folder_path()
         
-        # Simulate button handler query
-        cursor.execute("SELECT world, owner, bot FROM world_info WHERE id = 1")
-        result = cursor.fetchone()
+        assert tenant_path is not None
+        assert template_path is not None
         
-        conn.commit()
-        conn.close()
-        
-        if result:
-            print("✅ World info button simulation berhasil!")
-            print(f"   - World: {result[0]}")
-            print(f"   - Owner: {result[1]}")
-            print(f"   - Bot: {result[2]}")
-            return True
-        else:
-            print("❌ World info button simulation gagal!")
-            return False
-            
+        print("✅ Tenant service: PASSED")
+        await db_manager.close()
+        return True
     except Exception as e:
-        print(f"❌ Error testing world info button: {e}")
+        print(f"❌ Tenant service: FAILED - {e}")
         return False
 
-def test_database_integrity():
-    """Test database integrity after all operations"""
-    print("🔄 Testing database integrity...")
-    
+async def test_tenant_folder_structure():
+    """Test struktur folder tenant"""
+    print("📁 Testing tenant folder structure...")
     try:
-        conn = sqlite3.connect('shop.db')
-        cursor = conn.cursor()
+        # Check if tenant folders exist
+        tenant_root = Path("tenants")
+        template_path = tenant_root / "template"
+        active_path = tenant_root / "active"
+        backups_path = tenant_root / "backups"
         
-        # Check all required tables exist
-        tables_to_check = ['users', 'balance_transactions', 'world_info']
-        existing_tables = []
+        assert tenant_root.exists(), "Folder tenants tidak ada"
+        assert template_path.exists(), "Folder template tidak ada"
+        assert active_path.exists(), "Folder active tidak ada"
+        assert backups_path.exists(), "Folder backups tidak ada"
         
-        for table in tables_to_check:
-            cursor.execute("""
-                SELECT name FROM sqlite_master 
-                WHERE type='table' AND name=?
-            """, (table,))
-            if cursor.fetchone():
-                existing_tables.append(table)
+        # Check template config
+        config_file = template_path / "config" / "tenant_config.json"
+        assert config_file.exists(), "File tenant_config.json tidak ada"
         
-        # Check data consistency
-        cursor.execute("SELECT COUNT(*) FROM balance_transactions")
-        trx_count = cursor.fetchone()[0]
-        
-        cursor.execute("SELECT COUNT(*) FROM users")
-        user_count = cursor.fetchone()[0]
-        
-        cursor.execute("SELECT COUNT(*) FROM world_info")
-        world_count = cursor.fetchone()[0]
-        
-        conn.close()
-        
-        if len(existing_tables) == len(tables_to_check):
-            print("✅ Database integrity check berhasil!")
-            print(f"   - Tables: {', '.join(existing_tables)}")
-            print(f"   - Users: {user_count}")
-            print(f"   - Transactions: {trx_count}")
-            print(f"   - World Info: {world_count}")
-            return True
-        else:
-            missing = set(tables_to_check) - set(existing_tables)
-            print(f"❌ Missing tables: {missing}")
-            return False
-            
+        print("✅ Tenant folder structure: PASSED")
+        return True
     except Exception as e:
-        print(f"❌ Error testing database integrity: {e}")
+        print(f"❌ Tenant folder structure: FAILED - {e}")
         return False
 
-def main():
-    """Main comprehensive test function"""
-    print("🚀 Memulai comprehensive functionality test...")
-    print("=" * 60)
+async def test_cog_loading():
+    """Test apakah cog dapat dimuat"""
+    print("🔌 Testing cog loading...")
+    try:
+        # Import cog yang sudah diperbaiki
+        from src.cogs.tenant_bot_manager import TenantBotManager
+        
+        # Check if method name is correct
+        assert hasattr(TenantBotManager, 'instance_status'), "Method instance_status tidak ada"
+        assert not hasattr(TenantBotManager, 'bot_instance_status'), "Method bot_instance_status masih ada"
+        
+        print("✅ Cog loading: PASSED")
+        return True
+    except Exception as e:
+        print(f"❌ Cog loading: FAILED - {e}")
+        return False
+
+async def main():
+    """Main test function"""
+    print("🚀 Starting Bot Functionality Tests...")
+    print("=" * 50)
     
     tests = [
-        ("Database Integrity", test_database_integrity),
-        ("!addbal Command", test_addbal_functionality),
-        ("History Button", test_history_button_functionality),
-        ("World Info Button", test_world_info_button_functionality),
+        test_config_loading,
+        test_database_connection,
+        test_tenant_service,
+        test_tenant_folder_structure,
+        test_cog_loading
     ]
     
-    results = []
-    for test_name, test_func in tests:
-        print(f"\n📋 {test_name}")
-        print("-" * 40)
-        try:
-            result = test_func()
-            results.append((test_name, result))
-        except Exception as e:
-            print(f"❌ Test {test_name} failed with exception: {e}")
-            results.append((test_name, False))
-    
-    print("\n" + "=" * 60)
-    print("📊 COMPREHENSIVE TEST RESULTS:")
-    print("=" * 60)
-    
     passed = 0
-    for test_name, result in results:
-        status = "✅ PASS" if result else "❌ FAIL"
-        print(f"{status} - {test_name}")
-        if result:
-            passed += 1
+    total = len(tests)
     
-    print(f"\n📈 Summary: {passed}/{len(results)} tests passed")
+    for test in tests:
+        try:
+            result = await test()
+            if result:
+                passed += 1
+        except Exception as e:
+            print(f"❌ Test error: {e}")
+        print("-" * 30)
     
-    if passed == len(results):
-        print("\n🎉 ALL TESTS PASSED! Bot functionality is working correctly.")
-        print("\n🔧 CONFIRMED FIXES:")
-        print("✅ !addbal command will work without 'growid column' error")
-        print("✅ History button will work without 'get_user_transactions' error")
-        print("✅ World info button will work without connection errors")
-        print("\n🚀 Ready for deployment!")
+    print("=" * 50)
+    print(f"📊 Test Results: {passed}/{total} tests passed")
+    
+    if passed == total:
+        print("🎉 All tests PASSED! Bot functionality is working correctly.")
         return True
     else:
-        print(f"\n⚠️ {len(results) - passed} tests failed. Need further investigation.")
+        print(f"⚠️ {total - passed} tests FAILED. Please check the issues above.")
         return False
 
 if __name__ == "__main__":
-    main()
+    try:
+        result = asyncio.run(main())
+        sys.exit(0 if result else 1)
+    except KeyboardInterrupt:
+        print("\n❌ Tests interrupted by user")
+        sys.exit(1)
+    except Exception as e:
+        print(f"❌ Fatal error: {e}")
+        sys.exit(1)
