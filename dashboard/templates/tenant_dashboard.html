@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tenant Dashboard - Bot Rental System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body class="bg-gray-100">
+    <div class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-blue-600 text-white shadow-lg">
+            <div class="container mx-auto px-4 py-4">
+                <div class="flex items-center justify-between">
+                    <h1 class="text-2xl font-bold">
+                        <i class="fas fa-building mr-2"></i>
+                        Tenant Management Dashboard
+                    </h1>
+                    <nav class="space-x-4">
+                        <a href="/" class="hover:text-blue-200">Dashboard Utama</a>
+                        <a href="/bot-management" class="hover:text-blue-200">Bot Management</a>
+                    </nav>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="container mx-auto px-4 py-8">
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-blue-100 text-blue-600">
+                            <i class="fas fa-users text-xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm text-gray-600">Total Tenants</p>
+                            <p class="text-2xl font-semibold" id="total-tenants">0</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-green-100 text-green-600">
+                            <i class="fas fa-check-circle text-xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm text-gray-600">Active Tenants</p>
+                            <p class="text-2xl font-semibold" id="active-tenants">0</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-yellow-100 text-yellow-600">
+                            <i class="fas fa-crown text-xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm text-gray-600">Premium Plans</p>
+                            <p class="text-2xl font-semibold" id="premium-tenants">0</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-purple-100 text-purple-600">
+                            <i class="fas fa-cogs text-xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm text-gray-600">Features Enabled</p>
+                            <p class="text-2xl font-semibold" id="total-features">0</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tenant List -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h2 class="text-xl font-semibold text-gray-800">
+                        <i class="fas fa-list mr-2"></i>
+                        Daftar Tenant
+                    </h2>
+                </div>
+                
+                <div class="p-6">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full table-auto">
+                            <thead>
+                                <tr class="bg-gray-50">
+                                    <th class="px-4 py-2 text-left text-sm font-medium text-gray-700">Tenant ID</th>
+                                    <th class="px-4 py-2 text-left text-sm font-medium text-gray-700">Name</th>
+                                    <th class="px-4 py-2 text-left text-sm font-medium text-gray-700">Plan</th>
+                                    <th class="px-4 py-2 text-left text-sm font-medium text-gray-700">Status</th>
+                                    <th class="px-4 py-2 text-left text-sm font-medium text-gray-700">Features</th>
+                                    <th class="px-4 py-2 text-left text-sm font-medium text-gray-700">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tenant-list" class="divide-y divide-gray-200">
+                                <!-- Data akan dimuat via JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Feature Modal -->
+    <div id="feature-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden">
+        <div class="flex items-center justify-center min-h-screen">
+            <div class="bg-white rounded-lg shadow-lg max-w-md w-full mx-4">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold">Kelola Fitur Tenant</h3>
+                </div>
+                <div class="p-6">
+                    <div id="feature-list" class="space-y-3">
+                        <!-- Feature toggles akan dimuat di sini -->
+                    </div>
+                </div>
+                <div class="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
+                    <button onclick="closeFeatureModal()" class="px-4 py-2 text-gray-600 hover:text-gray-800">
+                        Batal
+                    </button>
+                    <button onclick="saveFeatures()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                        Simpan
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentTenantId = null;
+        let tenantFeatures = {};
+
+        // Load tenant data
+        async function loadTenants() {
+            try {
+                const response = await fetch('/tenant/api/tenants');
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayTenants(data.data);
+                    updateStats(data.data);
+                } else {
+                    console.error('Error loading tenants:', data.message);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        function displayTenants(tenants) {
+            const tbody = document.getElementById('tenant-list');
+            tbody.innerHTML = '';
+            
+            tenants.forEach(tenant => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50';
+                
+                const featuresCount = Object.values(tenant.features || {}).filter(Boolean).length;
+                const statusColor = tenant.status === 'active' ? 'text-green-600' : 'text-red-600';
+                const planColor = {
+                    'basic': 'bg-gray-100 text-gray-800',
+                    'premium': 'bg-blue-100 text-blue-800',
+                    'enterprise': 'bg-purple-100 text-purple-800'
+                }[tenant.plan] || 'bg-gray-100 text-gray-800';
+                
+                row.innerHTML = `
+                    <td class="px-4 py-3 text-sm font-mono">${tenant.tenant_id}</td>
+                    <td class="px-4 py-3 text-sm">${tenant.name}</td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-1 text-xs rounded-full ${planColor}">
+                            ${tenant.plan.toUpperCase()}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="text-sm ${statusColor}">
+                            <i class="fas fa-circle text-xs mr-1"></i>
+                            ${tenant.status.toUpperCase()}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-sm">${featuresCount} fitur aktif</td>
+                    <td class="px-4 py-3">
+                        <button onclick="openFeatureModal('${tenant.tenant_id}')" 
+                                class="text-blue-600 hover:text-blue-800 text-sm">
+                            <i class="fas fa-cog mr-1"></i>
+                            Kelola Fitur
+                        </button>
+                    </td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+        }
+
+        function updateStats(tenants) {
+            document.getElementById('total-tenants').textContent = tenants.length;
+            document.getElementById('active-tenants').textContent = 
+                tenants.filter(t => t.status === 'active').length;
+            document.getElementById('premium-tenants').textContent = 
+                tenants.filter(t => t.plan !== 'basic').length;
+            
+            const totalFeatures = tenants.reduce((sum, tenant) => 
+                sum + Object.values(tenant.features || {}).filter(Boolean).length, 0);
+            document.getElementById('total-features').textContent = totalFeatures;
+        }
+
+        function openFeatureModal(tenantId) {
+            currentTenantId = tenantId;
+            // Load tenant features and show modal
+            document.getElementById('feature-modal').classList.remove('hidden');
+        }
+
+        function closeFeatureModal() {
+            document.getElementById('feature-modal').classList.add('hidden');
+            currentTenantId = null;
+        }
+
+        async function saveFeatures() {
+            if (!currentTenantId) return;
+            
+            try {
+                const response = await fetch(`/tenant/api/tenants/${currentTenantId}/features`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ features: tenantFeatures })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    closeFeatureModal();
+                    loadTenants(); // Reload data
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Error saving features:', error);
+                alert('Terjadi error saat menyimpan fitur');
+            }
+        }
+
+        // Load data saat halaman dimuat
+        document.addEventListener('DOMContentLoaded', loadTenants);
+    </script>
+</body>
+</html>

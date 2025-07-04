@@ -10,8 +10,14 @@ from datetime import datetime, timedelta
 import uuid
 import os
 
+# Import tenant dashboard blueprint
+from tenant_dashboard import tenant_bp
+
 app = Flask(__name__)
 app.secret_key = 'rental_bot_dashboard_secret_key_2025'
+
+# Register tenant blueprint
+app.register_blueprint(tenant_bp)
 
 # Database path
 DB_PATH = '/home/user/workspace/dashboard/rental_bot.db'
