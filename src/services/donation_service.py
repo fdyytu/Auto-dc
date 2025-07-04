@@ -5,9 +5,8 @@ from datetime import datetime
 import json
 import re
 from src.database.connection import get_connection
-from src.database.models.balance import Balance
-from src.database.models.transaction import TransactionType
 from src.services.base_service import ServiceResponse
+from src.config.constants.bot_constants import Balance, TransactionType
 
 # Constants yang diperlukan - sementara hardcode sampai constants diperbaiki
 CURRENCY_RATES = {
@@ -54,14 +53,10 @@ class DonationManager:
         """Validasi GrowID menggunakan balance manager"""
         try:
             # Gunakan balance manager untuk cek GrowID
-            user_data = await self.balance_manager.get_user(growid)
+            user_response = await self.balance_manager.get_user(growid)
             
-            if not user_data:
+            if not user_response.success or not user_response.data:
                 return False, "❌ GrowID tidak terdaftar di database"
-                
-            # Cek apakah format GrowID sesuai dengan yang di database
-            if user_data.growid != growid:
-                return False, f"❌ Format GrowID salah. Gunakan: {user_data.growid}"
                 
             return True, "✅ GrowID valid"
             
@@ -106,56 +101,87 @@ class DonationManager:
             self.logger.error(f"Error processing donation: {e}")
             raise
 
-    async def process_webhook_message(self, message: discord.Message) -> None:
-        """Proses pesan dari webhook"""
+    async def process_donation_message(self, message: discord.Message) -> None:
+        """Proses pesan donasi dari channel donation"""
         try:
-            # Pastikan pesan dari webhook
-            if not message.author.bot or not message.webhook_id:
-                return
-
-            # Parse pesan webhook
-            match = re.search(r"GrowID: (\w+)\nJumlah: (.+)", message.content)
+            content = message.content.strip()
+            
+            # Cek apakah pesan embed
+            if message.embeds:
+                # Ambil content dari embed
+                embed = message.embeds[0]
+                if embed.description:
+                    content = embed.description
+                elif embed.fields:
+                    # Gabungkan semua field content
+                    content = "\n".join([f.value for f in embed.fields])
+            
+            # Parse pesan dengan format: GrowID: Fdy\nDeposit: 1 Diamond Lock
+            patterns = [
+                r"GrowID:\s*(\w+).*?Deposit:\s*(.+)",  # Format utama
+                r"GrowID:\s*(\w+).*?Jumlah:\s*(.+)",   # Format alternatif
+            ]
+            
+            match = None
+            for pattern in patterns:
+                match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
+                if match:
+                    break
+            
             if not match:
-                await self.send_error(message.channel, "Format pesan tidak valid")
+                self.logger.debug(f"Format pesan tidak sesuai: {content}")
                 return
 
-            growid = match.group(1)
-            deposit_str = match.group(2)
+            growid = match.group(1).strip()
+            deposit_str = match.group(2).strip()
+
+            self.logger.info(f"Processing donation: GrowID={growid}, Deposit={deposit_str}")
 
             # Validasi GrowID menggunakan balance manager
             is_valid, message_text = await self.validate_growid(growid)
             if not is_valid:
-                await self.send_error(message.channel, message_text)
+                await message.channel.send(f"Failed to find growid {growid}")
                 return
 
             # Get current balance via balance manager
-            user_data = await self.balance_manager.get_user(growid)
-            if not user_data:
-                await self.send_error(message.channel, "GrowID tidak ditemukan")
+            user_response = await self.balance_manager.get_user(growid)
+            if not user_response.success or not user_response.data:
+                await message.channel.send(f"Failed to find growid {growid}")
                 return
 
-            current_balance = user_data.balance
+            current_balance = user_response.data.balance
 
             # Parse deposit amounts
             try:
                 wl, dl, bgl = self.parse_deposit(deposit_str)
                 if wl == 0 and dl == 0 and bgl == 0:
-                    await self.send_error(message.channel, "Jumlah donasi tidak valid")
+                    await message.channel.send(f"Failed to find growid {growid}")
                     return
-            except Exception:
-                await self.send_error(message.channel, "Format jumlah donasi tidak valid")
+            except Exception as e:
+                self.logger.error(f"Error parsing deposit: {e}")
+                await message.channel.send(f"Failed to find growid {growid}")
                 return
 
             # Process donation
             try:
                 new_balance = await self.process_donation(growid, wl, dl, bgl, current_balance)
-                await self.send_success(message.channel, growid, wl, dl, bgl, new_balance)
+                
+                # Format balance untuk response
+                balance_text = f"{new_balance.wl:,} WL"
+                if new_balance.dl > 0:
+                    balance_text += f", {new_balance.dl:,} DL"
+                if new_balance.bgl > 0:
+                    balance_text += f", {new_balance.bgl:,} BGL"
+                
+                await message.channel.send(f"Successfully filled {growid}. Current growid balance {balance_text}")
+                
             except Exception as e:
-                await self.send_error(message.channel, f"Gagal memproses donasi: {str(e)}")
+                self.logger.error(f"Error processing donation: {e}")
+                await message.channel.send(f"Failed to find growid {growid}")
 
         except Exception as e:
-            self.logger.error(f"Error processing webhook message: {e}")
-            await self.send_error(message.channel, "Terjadi kesalahan sistem")
+            self.logger.error(f"Error processing donation message: {e}")
+            await message.channel.send(f"Failed to find growid")
 
     async def send_error(self, channel: discord.TextChannel, message: str):
         """Kirim pesan error"""
@@ -210,43 +236,7 @@ class DonationManager:
         embed.set_footer(text="Terima kasih atas donasi Anda!")
         await channel.send(embed=embed)
 
-class Donation(commands.Cog):
-    """Cog for donation system"""
-    def __init__(self, bot):
-        self.bot = bot
-        self.logger = logging.getLogger("Donation")
-        self.manager = DonationManager(bot)
-
-    @commands.Cog.listener()
-    async def on_message(self, message: discord.Message):
-        """Listen for webhook messages"""
-        # Check channel ID from config
-        if not DONATION_CHANNEL_ID:
-            return
-        if message.channel.id != DONATION_CHANNEL_ID:
-            return
-
-        await self.manager.process_webhook_message(message)
-
+# Legacy setup function - donation cog sekarang dimuat dari src/cogs/donation.py
 async def setup(bot):
-    """Setup the Donation cog"""
-    global DONATION_CHANNEL_ID
-    
-    if not hasattr(bot, 'donation_cog_loaded'):
-        # Load donation channel ID from bot config
-        DONATION_CHANNEL_ID = bot.config.get('id_donation_log')
-        
-        # Validate config first
-        if not DONATION_CHANNEL_ID:
-            logging.error("Donation channel ID not found in config.json")
-            return
-            
-        donation_cog = Donation(bot)
-        
-        # Get balance manager instance
-        from .balance_service import BalanceManagerService
-        donation_cog.manager.balance_manager = BalanceManagerService(bot)
-        
-        await bot.add_cog(donation_cog)
-        bot.donation_cog_loaded = True
-        logging.info('Donation cog loaded successfully')
+    """Legacy setup function - tidak digunakan lagi"""
+    logging.info('Donation service available - cog dimuat dari src/cogs/donation.py')
