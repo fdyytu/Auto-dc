@@ -49,20 +49,193 @@ class DonationManager:
             
             self.initialized = True
 
+from src.services.user_service import UserService
+
     async def validate_growid(self, growid: str) -> tuple[bool, str]:
-        """Validasi GrowID menggunakan balance manager"""
+        """Validasi GrowID menggunakan user service"""
         try:
-            # Gunakan balance manager untuk cek GrowID
-            user_response = await self.balance_manager.get_user(growid)
+            # Gunakan user service untuk cek GrowID
+            user_service = UserService(self.bot)
+            user_response = await user_service.get_user_by_growid(growid)
             
             if not user_response.success or not user_response.data:
+                self.logger.warning(f"Validate GrowID failed: {growid} not found in database")
                 return False, "❌ GrowID tidak terdaftar di database"
                 
+            self.logger.info(f"Validate GrowID success: {growid}")
             return True, "✅ GrowID valid"
             
         except Exception as e:
             self.logger.error(f"Error validating GrowID: {e}")
             return False, "❌ Terjadi kesalahan saat validasi GrowID"
+<<<<<<< REPLACE
+    async def process_donation_message(self, message: discord.Message) -> None:
+        """Proses pesan donasi dari channel donation"""
+        try:
+            content = message.content.strip()
+            
+            # Cek apakah pesan embed
+            if message.embeds:
+                # Ambil content dari embed
+                embed = message.embeds[0]
+                if embed.description:
+                    content = embed.description
+                elif embed.fields:
+                    # Gabungkan semua field content
+                    content = "\n".join([f.value for f in embed.fields])
+            
+            # Parse pesan dengan format: GrowID: Fdy\nDeposit: 1 Diamond Lock
+            patterns = [
+                r"GrowID:\s*(\w+).*?Deposit:\s*(.+)",  # Format utama
+                r"GrowID:\s*(\w+).*?Jumlah:\s*(.+)",   # Format alternatif
+            ]
+            
+            match = None
+            for pattern in patterns:
+                match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
+                if match:
+                    break
+            
+            if not match:
+                self.logger.debug(f"Format pesan tidak sesuai: {content}")
+                return
+
+            growid = match.group(1).strip()
+            deposit_str = match.group(2).strip()
+
+            self.logger.info(f"Processing donation: GrowID={growid}, Deposit={deposit_str}")
+
+            # Validasi GrowID menggunakan balance manager
+            is_valid, message_text = await self.validate_growid(growid)
+            if not is_valid:
+                await message.channel.send(f"Failed to find growid {growid}")
+                return
+
+            # Get current balance via balance manager
+            user_response = await self.balance_manager.get_user(growid)
+            if not user_response.success or not user_response.data:
+                await message.channel.send(f"Failed to find growid {growid}")
+                return
+
+            current_balance = user_response.data.balance
+
+            # Parse deposit amounts
+            try:
+                wl, dl, bgl = self.parse_deposit(deposit_str)
+                if wl == 0 and dl == 0 and bgl == 0:
+                    await message.channel.send(f"Failed to find growid {growid}")
+                    return
+            except Exception as e:
+                self.logger.error(f"Error parsing deposit: {e}")
+                await message.channel.send(f"Failed to find growid {growid}")
+                return
+
+            # Process donation
+            try:
+                new_balance = await self.process_donation(growid, wl, dl, bgl, current_balance)
+                
+                # Format balance untuk response
+                balance_text = f"{new_balance.wl:,} WL"
+                if new_balance.dl > 0:
+                    balance_text += f", {new_balance.dl:,} DL"
+                if new_balance.bgl > 0:
+                    balance_text += f", {new_balance.bgl:,} BGL"
+                
+                await message.channel.send(f"Successfully filled {growid}. Current growid balance {balance_text}")
+                
+            except Exception as e:
+                self.logger.error(f"Error processing donation: {e}")
+                await message.channel.send(f"Failed to find growid {growid}")
+
+        except Exception as e:
+            self.logger.error(f"Error processing donation message: {e}")
+            await message.channel.send(f"Failed to find growid")
+=======
+    async def process_donation_message(self, message: discord.Message) -> None:
+        """Proses pesan donasi dari channel donation"""
+        try:
+            content = message.content.strip()
+            
+            # Cek apakah pesan embed
+            if message.embeds:
+                # Ambil content dari embed
+                embed = message.embeds[0]
+                if embed.description:
+                    content = embed.description
+                elif embed.fields:
+                    # Gabungkan semua field content
+                    content = "\n".join([f.value for f in embed.fields])
+            
+            # Parse pesan dengan format: GrowID: Fdy\nDeposit: 1 Diamond Lock
+            patterns = [
+                r"GrowID:\s*(\w+).*?Deposit:\s*(.+)",  # Format utama
+                r"GrowID:\s*(\w+).*?Jumlah:\s*(.+)",   # Format alternatif
+            ]
+            
+            match = None
+            for pattern in patterns:
+                match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
+                if match:
+                    break
+            
+            if not match:
+                self.logger.debug(f"Format pesan tidak sesuai: {content}")
+                return
+
+            growid = match.group(1).strip()
+            deposit_str = match.group(2).strip()
+
+            self.logger.info(f"Processing donation: GrowID={growid}, Deposit={deposit_str}")
+
+            # Validasi GrowID menggunakan balance manager
+            is_valid, message_text = await self.validate_growid(growid)
+            if not is_valid:
+                self.logger.warning(f"Donation failed: {message_text} for growid {growid}")
+                await message.channel.send(f"Failed to find growid {growid}")
+                return
+
+            # Get current balance via user service
+            user_service = UserService(self.bot)
+            user_response = await user_service.get_user_by_growid(growid)
+            if not user_response.success or not user_response.data:
+                self.logger.warning(f"Donation failed: User data not found for growid {growid}")
+                await message.channel.send(f"Failed to find growid {growid}")
+                return
+
+            current_balance = user_response.data.balance
+
+            # Parse deposit amounts
+            try:
+                wl, dl, bgl = self.parse_deposit(deposit_str)
+                if wl == 0 and dl == 0 and bgl == 0:
+                    self.logger.warning(f"Donation failed: Deposit amounts zero for growid {growid}")
+                    await message.channel.send(f"Failed to find growid {growid}")
+                    return
+            except Exception as e:
+                self.logger.error(f"Error parsing deposit: {e}")
+                await message.channel.send(f"Failed to find growid {growid}")
+                return
+
+            # Process donation
+            try:
+                new_balance = await self.process_donation(growid, wl, dl, bgl, current_balance)
+                
+                # Format balance untuk response
+                balance_text = f"{new_balance.wl:,} WL"
+                if new_balance.dl > 0:
+                    balance_text += f", {new_balance.dl:,} DL"
+                if new_balance.bgl > 0:
+                    balance_text += f", {new_balance.bgl:,} BGL"
+                
+                await message.channel.send(f"Successfully filled {growid}. Current growid balance {balance_text}")
+                
+            except Exception as e:
+                self.logger.error(f"Error processing donation: {e}")
+                await message.channel.send(f"Failed to find growid {growid}")
+
+        except Exception as e:
+            self.logger.error(f"Error processing donation message: {e}")
+            await message.channel.send(f"Failed to find growid")
 
     def parse_deposit(self, deposit: str) -> tuple[int, int, int]:
         """Parse deposit string into WL, DL, BGL amounts"""
