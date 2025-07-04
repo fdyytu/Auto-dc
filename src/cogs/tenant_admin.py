@@ -7,8 +7,8 @@ import discord
 from discord.ext import commands
 import logging
 from typing import Optional
-from src.services.tenant_service import TenantService
-from src.services.tenant_config_service import TenantConfigService
+from tenants.services.tenant_service import TenantService
+from tenants.services.tenant_config_service import TenantConfigService
 from src.database.connection import DatabaseManager
 
 logger = logging.getLogger(__name__)

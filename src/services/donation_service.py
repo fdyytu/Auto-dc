@@ -25,6 +25,8 @@ PATHS = {
     'CONFIG': 'config.json'  # Adjust path sesuai kebutuhan
 }
 
+from src.bot.config import config_manager
+
 # Load config akan dilakukan saat setup, bukan saat import
 DONATION_CHANNEL_ID = None
 
@@ -42,6 +44,10 @@ class DonationManager:
             self.bot = bot
             self.logger = logging.getLogger("DonationManager")
             self.balance_manager = None
+
+            # Load donation channel ID from config_manager
+            global DONATION_CHANNEL_ID
+            DONATION_CHANNEL_ID = config_manager.get('id_donation_log')
             
             # Validasi channel ID saat inisialisasi
             if not DONATION_CHANNEL_ID:
