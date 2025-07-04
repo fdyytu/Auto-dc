@@ -157,7 +157,7 @@ class TenantBotManager(commands.Cog):
     
     @tenant_group.command(name='status')
     @commands.has_permissions(administrator=True)
-    async def bot_instance_status(self, ctx, tenant_id: str):
+    async def instance_status(self, ctx, tenant_id: str):
         """Cek status bot instance untuk tenant"""
         try:
             response = await self.bot_service.get_bot_instance_by_tenant(tenant_id)
