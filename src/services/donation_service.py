@@ -30,6 +30,9 @@ from src.bot.config import config_manager
 # Load config akan dilakukan saat setup, bukan saat import
 DONATION_CHANNEL_ID = None
 
+# Update imports for tenant files moved
+# No direct tenant imports here, so no changes needed in this file for tenant move
+
 class DonationManager:
     """Manager class for handling donations"""
     _instance = None
