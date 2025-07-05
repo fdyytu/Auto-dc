@@ -403,44 +403,6 @@ class BalanceManagerService(BaseLockHandler):
                 conn.close()
             self.release_lock(f"update_growid_{discord_id}")
 
-class BalanceManagerService(BaseLockHandler):
-    _instance = None
-    _instance_lock = asyncio.Lock()
-
-    def __new__(cls, bot):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance.initialized = False
-        return cls._instance
-
-    def __init__(self, bot):
-        if not self.initialized:
-            super().__init__()
-            self.bot = bot
-            self.logger = logging.getLogger("BalanceManagerService")
-            self.cache_manager = CacheManager()
-            self.callback_manager = BalanceCallbackManager()
-            self.setup_default_callbacks()
-            self.initialized = True
-
-    def normalize_balance(self, balance: Balance) -> Balance:
-        """Normalisasi balance dengan mengkonversi WL ke DL dan DL ke BGL sesuai rate"""
-        wl = balance.wl
-        dl = balance.dl
-        bgl = balance.bgl
-
-        # Konversi WL ke DL
-        if wl >= CURRENCY_RATES['RATES']['DL']:
-            dl += wl // CURRENCY_RATES['RATES']['DL']
-            wl = wl % CURRENCY_RATES['RATES']['DL']
-
-        # Konversi DL ke BGL
-        if dl >= CURRENCY_RATES['RATES']['BGL']:
-            bgl += dl // CURRENCY_RATES['RATES']['BGL']
-            dl = dl % CURRENCY_RATES['RATES']['BGL']
-
-        return Balance(wl, dl, bgl)
-
     async def get_balance(self, growid: str) -> BalanceResponse:
         """Get user balance with proper locking and caching"""
         cache_key = f"balance_{growid}"
