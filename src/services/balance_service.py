@@ -102,6 +102,24 @@ class BalanceManagerService(BaseLockHandler):
             self.setup_default_callbacks()
             self.initialized = True
 
+    def normalize_balance(self, balance: Balance) -> Balance:
+        """Normalisasi balance dengan mengkonversi WL ke DL dan DL ke BGL sesuai rate"""
+        wl = balance.wl
+        dl = balance.dl
+        bgl = balance.bgl
+
+        # Konversi WL ke DL
+        if wl >= CURRENCY_RATES['RATES']['DL']:
+            dl += wl // CURRENCY_RATES['RATES']['DL']
+            wl = wl % CURRENCY_RATES['RATES']['DL']
+
+        # Konversi DL ke BGL
+        if dl >= CURRENCY_RATES['RATES']['BGL']:
+            bgl += dl // CURRENCY_RATES['RATES']['BGL']
+            dl = dl % CURRENCY_RATES['RATES']['BGL']
+
+        return Balance(wl, dl, bgl)
+
     def setup_default_callbacks(self):
         """Setup default callbacks untuk notifikasi"""
         
@@ -385,6 +403,44 @@ class BalanceManagerService(BaseLockHandler):
                 conn.close()
             self.release_lock(f"update_growid_{discord_id}")
 
+class BalanceManagerService(BaseLockHandler):
+    _instance = None
+    _instance_lock = asyncio.Lock()
+
+    def __new__(cls, bot):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance.initialized = False
+        return cls._instance
+
+    def __init__(self, bot):
+        if not self.initialized:
+            super().__init__()
+            self.bot = bot
+            self.logger = logging.getLogger("BalanceManagerService")
+            self.cache_manager = CacheManager()
+            self.callback_manager = BalanceCallbackManager()
+            self.setup_default_callbacks()
+            self.initialized = True
+
+    def normalize_balance(self, balance: Balance) -> Balance:
+        """Normalisasi balance dengan mengkonversi WL ke DL dan DL ke BGL sesuai rate"""
+        wl = balance.wl
+        dl = balance.dl
+        bgl = balance.bgl
+
+        # Konversi WL ke DL
+        if wl >= CURRENCY_RATES['RATES']['DL']:
+            dl += wl // CURRENCY_RATES['RATES']['DL']
+            wl = wl % CURRENCY_RATES['RATES']['DL']
+
+        # Konversi DL ke BGL
+        if dl >= CURRENCY_RATES['RATES']['BGL']:
+            bgl += dl // CURRENCY_RATES['RATES']['BGL']
+            dl = dl % CURRENCY_RATES['RATES']['BGL']
+
+        return Balance(wl, dl, bgl)
+
     async def get_balance(self, growid: str) -> BalanceResponse:
         """Get user balance with proper locking and caching"""
         cache_key = f"balance_{growid}"
@@ -394,7 +450,8 @@ class BalanceManagerService(BaseLockHandler):
                 balance = Balance(cached['wl'], cached['dl'], cached['bgl'])
             else:
                 balance = cached
-            return BalanceResponse.success(balance)
+            normalized_balance = self.normalize_balance(balance)
+            return BalanceResponse.success(normalized_balance)
 
         lock = await self.acquire_lock(cache_key)
         if not lock:
@@ -420,16 +477,17 @@ class BalanceManagerService(BaseLockHandler):
                     result['balance_dl'],
                     result['balance_bgl']
                 )
+                normalized_balance = self.normalize_balance(balance)
                 await self.cache_manager.set(
                     cache_key, 
-                    balance,
+                    normalized_balance,
                     expires_in=CACHE_TIMEOUT.get_seconds(CACHE_TIMEOUT.SHORT)
                 )
                 
                 # Trigger callback
-                await self.callback_manager.trigger('balance_checked', growid, balance)
+                await self.callback_manager.trigger('balance_checked', growid, normalized_balance)
                 
-                return BalanceResponse.success(balance)
+                return BalanceResponse.success(normalized_balance)
             return BalanceResponse.error(MESSAGES.ERROR['BALANCE_NOT_FOUND'])
 
         except Exception as e:
@@ -470,8 +528,9 @@ class BalanceManagerService(BaseLockHandler):
             new_bgl = max(0, current_balance.bgl + bgl)
             
             new_balance = Balance(new_wl, new_dl, new_bgl)
+            normalized_new_balance = self.normalize_balance(new_balance)
             
-            if not new_balance.validate():
+            if not normalized_new_balance.validate():
                 return BalanceResponse.error(MESSAGES.ERROR['INVALID_AMOUNT'])
 
             # Validate withdrawals
@@ -495,7 +554,7 @@ class BalanceManagerService(BaseLockHandler):
                         updated_at = CURRENT_TIMESTAMP
                     WHERE growid = ? COLLATE binary
                     """,
-                    (new_wl, new_dl, new_bgl, growid)
+                    (normalized_new_balance.wl, normalized_new_balance.dl, normalized_new_balance.bgl, growid)
                 )
                 
                 cursor.execute(
@@ -509,7 +568,7 @@ class BalanceManagerService(BaseLockHandler):
                         transaction_type,
                         details,
                         current_balance.format(),
-                        new_balance.format()
+                        normalized_new_balance.format()
                     )
                 )
                 
@@ -518,7 +577,7 @@ class BalanceManagerService(BaseLockHandler):
                 # Update cache
                 await self.cache_manager.set(
                     f"balance_{growid}", 
-                    new_balance,
+                    normalized_new_balance,
                     expires_in=CACHE_TIMEOUT.get_seconds(CACHE_TIMEOUT.SHORT)
                 )
                 
@@ -530,7 +589,7 @@ class BalanceManagerService(BaseLockHandler):
                     'balance_updated', 
                     growid, 
                     current_balance, 
-                    new_balance
+                    normalized_new_balance
                 )
                 await self.callback_manager.trigger(
                     'transaction_added',
@@ -540,7 +599,7 @@ class BalanceManagerService(BaseLockHandler):
                 )
                 
                 return BalanceResponse.success(
-                    new_balance,
+                    normalized_new_balance,
                     MESSAGES.SUCCESS['BALANCE_UPDATE']
                 )
 

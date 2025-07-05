@@ -58,6 +58,24 @@ class DonationManager:
             
             self.initialized = True
 
+    def normalize_balance(self, balance: Balance) -> Balance:
+        """Normalisasi balance dengan mengkonversi WL ke DL dan DL ke BGL sesuai rate"""
+        wl = balance.wl
+        dl = balance.dl
+        bgl = balance.bgl
+
+        # Konversi WL ke DL
+        if wl >= CURRENCY_RATES['RATES']['DL']:
+            dl += wl // CURRENCY_RATES['RATES']['DL']
+            wl = wl % CURRENCY_RATES['RATES']['DL']
+
+        # Konversi DL ke BGL
+        if dl >= CURRENCY_RATES['RATES']['BGL']:
+            bgl += dl // CURRENCY_RATES['RATES']['BGL']
+            dl = dl % CURRENCY_RATES['RATES']['BGL']
+
+        return Balance(wl, dl, bgl)
+
     async def validate_growid(self, growid: str) -> tuple[bool, str]:
         """Validasi GrowID menggunakan user service"""
         try:
@@ -196,9 +214,11 @@ class DonationManager:
             # Update balance menggunakan balance manager
             await self.balance_manager.update_balance(
                 growid,
-                new_balance,
-                TransactionType.DONATION,
-                f"Donation: {wl} WL, {dl} DL, {bgl} BGL"
+                wl,
+                dl,
+                bgl,
+                f"Donation: {wl} WL, {dl} DL, {bgl} BGL",
+                TransactionType.DONATION
             )
 
             return new_balance
@@ -219,6 +239,9 @@ class DonationManager:
 
     async def send_success(self, channel: discord.TextChannel, growid: str, wl: int, dl: int, bgl: int, new_balance: Balance):
         """Kirim pesan sukses"""
+        # Normalisasi balance baru
+        normalized_balance = self.normalize_balance(new_balance)
+
         # Hitung total dalam WL
         total_wl = (
             wl + 
@@ -237,14 +260,14 @@ class DonationManager:
         
         deposit_text = " + ".join(deposit_parts)
         
-        # Format balance baru
+        # Format balance baru dengan balance ternormalisasi
         balance_parts = []
-        if new_balance.wl > 0:
-            balance_parts.append(f"{new_balance.wl:,} WL")
-        if new_balance.dl > 0:
-            balance_parts.append(f"{new_balance.dl:,} DL")
-        if new_balance.bgl > 0:
-            balance_parts.append(f"{new_balance.bgl:,} BGL")
+        if normalized_balance.wl > 0:
+            balance_parts.append(f"{normalized_balance.wl:,} WL")
+        if normalized_balance.dl > 0:
+            balance_parts.append(f"{normalized_balance.dl:,} DL")
+        if normalized_balance.bgl > 0:
+            balance_parts.append(f"{normalized_balance.bgl:,} BGL")
         
         balance_text = " + ".join(balance_parts)
         
