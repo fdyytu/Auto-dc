@@ -65,7 +65,7 @@ class DonationManager:
             from src.services.user_service import UserService
             
             # Gunakan user service untuk cek GrowID
-            user_service = UserService(self.bot)
+            user_service = UserService(self.bot.db_manager)
             user_response = await user_service.get_user_by_growid(growid)
             
             if not user_response.success or not user_response.data:
