@@ -131,7 +131,11 @@ class DonationManager:
                 await message.channel.send(f"Failed to find growid {growid}")
                 return
 
-            current_balance = user_response.data.balance
+            current_balance = Balance(
+                wl=user_response.data.get('balance_wl', 0),
+                dl=user_response.data.get('balance_dl', 0),
+                bgl=user_response.data.get('balance_bgl', 0)
+            )
 
             # Parse deposit amounts
             try:
