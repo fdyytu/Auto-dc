@@ -109,14 +109,14 @@ class BalanceManagerService(BaseLockHandler):
         bgl = balance.bgl
 
         # Konversi WL ke DL
-        if wl >= CURRENCY_RATES['RATES']['DL']:
-            dl += wl // CURRENCY_RATES['RATES']['DL']
-            wl = wl % CURRENCY_RATES['RATES']['DL']
+        if wl >= CURRENCY_RATES.RATES['DL']:
+            dl += wl // CURRENCY_RATES.RATES['DL']
+            wl = wl % CURRENCY_RATES.RATES['DL']
 
         # Konversi DL ke BGL
-        if dl >= CURRENCY_RATES['RATES']['BGL']:
-            bgl += dl // CURRENCY_RATES['RATES']['BGL']
-            dl = dl % CURRENCY_RATES['RATES']['BGL']
+        if dl >= CURRENCY_RATES.RATES['BGL']:
+            bgl += dl // CURRENCY_RATES.RATES['BGL']
+            dl = dl % CURRENCY_RATES.RATES['BGL']
 
         return Balance(wl, dl, bgl)
 
