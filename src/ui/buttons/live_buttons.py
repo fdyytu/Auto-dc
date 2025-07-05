@@ -122,7 +122,7 @@ class ShopView(View):
         self.logger = get_logger("ShopView")
         
         # Initialize services
-        self.balance_service = BalanceService(bot.db_manager)
+        self.balance_service = BalanceService(bot)
         self.product_service = ProductService(bot.db_manager)
         self.trx_manager = TransactionService(bot)
         self.admin_service = AdminService(bot.db_manager)
