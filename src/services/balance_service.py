@@ -468,7 +468,7 @@ class BalanceManagerService(BaseLockHandler):
         dl: int = 0, 
         bgl: int = 0,
         details: str = "", 
-        transaction_type: str = ""
+        transaction_type: TransactionType = TransactionType.DEPOSIT
     ) -> BalanceResponse:
         """Update balance with proper locking and validation"""
         lock = await self.acquire_lock(f"balance_update_{growid}")
@@ -527,7 +527,7 @@ class BalanceManagerService(BaseLockHandler):
                     """,
                     (
                         growid,
-                        transaction_type,
+                        transaction_type.value, 
                         details,
                         current_balance.format(),
                         normalized_new_balance.format()
