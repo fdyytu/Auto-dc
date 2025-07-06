@@ -512,6 +512,9 @@ class BalanceManagerService(BaseLockHandler):
                 new_bgl = max(0, current_balance.bgl + bgl)
                 new_balance = Balance(new_wl, new_dl, new_bgl)
                 normalized_new_balance = self.normalize_balance(new_balance)
+            
+            # Always normalize the final balance to ensure proper currency conversion
+            normalized_new_balance = self.normalize_balance(normalized_new_balance)
 
             conn = get_connection()
             cursor = conn.cursor()
