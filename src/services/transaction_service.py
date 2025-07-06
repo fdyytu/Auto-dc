@@ -229,7 +229,7 @@ class TransactionManager(BaseLockHandler):
                 growid=growid,
                 wl=-total_price,
                 details=f"Purchase {quantity}x {product['name']}",
-                transaction_type=TransactionType.PURCHASE.value
+                transaction_type=TransactionType.PURCHASE
             )
             if not balance_update_response.success:
                 # Rollback stock status if balance update fails
@@ -347,7 +347,7 @@ class TransactionManager(BaseLockHandler):
                 dl=dl,
                 bgl=bgl,
                 details=details,
-                transaction_type=TransactionType.DEPOSIT.value
+                transaction_type=TransactionType.DEPOSIT
             )
             if not balance_response.success:
                 return TransactionResponse.error(balance_response.error)
@@ -455,7 +455,7 @@ class TransactionManager(BaseLockHandler):
                 dl=-dl,
                 bgl=-bgl,
                 details=details,
-                transaction_type=TransactionType.WITHDRAWAL.value
+                transaction_type=TransactionType.WITHDRAWAL
             )
             if not balance_response.success:
                 return TransactionResponse.error(balance_response.error)

@@ -519,6 +519,12 @@ class BalanceManagerService(BaseLockHandler):
                     (normalized_new_balance.wl, normalized_new_balance.dl, normalized_new_balance.bgl, growid)
                 )
                 
+                # Handle both enum and string transaction types
+                if isinstance(transaction_type, TransactionType):
+                    transaction_type_value = transaction_type.value
+                else:
+                    transaction_type_value = str(transaction_type)
+                
                 cursor.execute(
                     """
                     INSERT INTO balance_transactions 
@@ -527,7 +533,7 @@ class BalanceManagerService(BaseLockHandler):
                     """,
                     (
                         growid,
-                        transaction_type.value, 
+                        transaction_type_value, 
                         details,
                         current_balance.format(),
                         normalized_new_balance.format()
