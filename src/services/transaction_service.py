@@ -211,8 +211,13 @@ class TransactionManager(BaseLockHandler):
                 return TransactionResponse.error(balance_response.error)
             current_balance = balance_response.data
 
+            # Add detailed logging for balance verification
+            self.logger.info(f"[PURCHASE] Balance verification for {growid}: Balance={current_balance.total_wl()} WL, Required={total_price} WL")
+            self.logger.info(f"[PURCHASE] Balance details: WL={current_balance.wl}, DL={current_balance.dl}, BGL={current_balance.bgl}")
+
             if total_price > current_balance.total_wl():
-                return TransactionResponse.error(MESSAGES.ERROR['INSUFFICIENT_BALANCE'])
+                self.logger.warning(f"[PURCHASE] Insufficient balance for {growid}: Required={total_price} WL, Available={current_balance.total_wl()} WL")
+                return TransactionResponse.error(f"❌ Balance tidak cukup! Saldo Anda: {current_balance.total_wl():,.0f} WL, Dibutuhkan: {total_price:,.0f} WL")
 
             # Update stock status via ProductManager
             stock_update_response = await self.product_manager.update_stock_status(

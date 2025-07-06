@@ -348,7 +348,11 @@ class DatabaseManager:
                 cursor.execute("PRAGMA integrity_check")
                 result = cursor.fetchone()
                 if result and result[0] != 'ok':
-                    logger.error("Database integrity check gagal")
+                    logger.error(f"Database integrity check failed: {result[0]}")
+                    # Try to repair database
+                    if await self.repair_database():
+                        logger.info("Database repair successful, retrying verification")
+                        return await self.verify_database()
                     return False
                 
                 # Cleanup expired cache
@@ -360,6 +364,110 @@ class DatabaseManager:
                 
         except Exception as e:
             logger.error(f"Error verifikasi database: {e}")
+            # Try to repair database if verification fails
+            if "database disk image is malformed" in str(e).lower():
+                logger.warning("Database corruption detected, attempting repair")
+                if await self.repair_database():
+                    logger.info("Database repair successful, retrying verification")
+                    return await self.verify_database()
+            return False
+    
+    async def repair_database(self) -> bool:
+        """Repair corrupted database"""
+        try:
+            logger.info("Starting database repair process")
+            
+            # Create backup of corrupted database
+            backup_path = f"{self.db_path}.corrupted.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            import shutil
+            shutil.copy2(self.db_path, backup_path)
+            logger.info(f"Corrupted database backed up to: {backup_path}")
+            
+            # Try to dump and restore database
+            temp_dump_path = f"{self.db_path}.dump"
+            
+            # Attempt to dump database content
+            try:
+                async with self.get_connection() as conn:
+                    # Try to dump as much data as possible
+                    cursor = conn.cursor()
+                    
+                    # Get list of tables
+                    cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                    tables = cursor.fetchall()
+                    
+                    dump_content = []
+                    for table in tables:
+                        table_name = table[0]
+                        try:
+                            cursor.execute(f"SELECT sql FROM sqlite_master WHERE name='{table_name}'")
+                            create_sql = cursor.fetchone()
+                            if create_sql:
+                                dump_content.append(create_sql[0] + ";")
+                            
+                            cursor.execute(f"SELECT * FROM {table_name}")
+                            rows = cursor.fetchall()
+                            for row in rows:
+                                escaped_values = []
+                                for v in row:
+                                    if v is None:
+                                        escaped_values.append("NULL")
+                                    else:
+                                        escaped_val = str(v).replace("'", "''")
+                                        escaped_values.append(f"'{escaped_val}'")
+                                values = ", ".join(escaped_values)
+                                dump_content.append(f"INSERT INTO {table_name} VALUES ({values});")
+                        except Exception as table_error:
+                            logger.warning(f"Could not dump table {table_name}: {table_error}")
+                            continue
+                    
+                    # Write dump to file
+                    with open(temp_dump_path, 'w', encoding='utf-8') as f:
+                        f.write('\n'.join(dump_content))
+                    
+                    logger.info(f"Database content dumped to: {temp_dump_path}")
+                    
+            except Exception as dump_error:
+                logger.error(f"Failed to dump database: {dump_error}")
+                return False
+            
+            # Remove corrupted database
+            os.remove(self.db_path)
+            
+            # Recreate database from dump
+            if await self.setup_database():
+                try:
+                    # Restore data from dump
+                    with open(temp_dump_path, 'r', encoding='utf-8') as f:
+                        dump_content = f.read()
+                    
+                    async with self.get_connection() as conn:
+                        cursor = conn.cursor()
+                        # Execute dump content
+                        for statement in dump_content.split(';'):
+                            statement = statement.strip()
+                            if statement and not statement.startswith('CREATE TABLE'):
+                                try:
+                                    cursor.execute(statement)
+                                except Exception as restore_error:
+                                    logger.warning(f"Could not restore statement: {statement[:100]}... Error: {restore_error}")
+                        conn.commit()
+                    
+                    # Clean up dump file
+                    os.remove(temp_dump_path)
+                    
+                    logger.info("Database repair completed successfully")
+                    return True
+                    
+                except Exception as restore_error:
+                    logger.error(f"Failed to restore database from dump: {restore_error}")
+                    return False
+            else:
+                logger.error("Failed to recreate database structure")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Database repair failed: {e}")
             return False
     
     async def close(self):

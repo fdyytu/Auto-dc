@@ -130,8 +130,9 @@ class AdminBackupCog(AdminBaseCog):
                 # Verifikasi database
                 if not await db_manager.verify_database():
                     # Rollback jika verifikasi gagal
+                    logger.error("Database verification failed after restore, rolling back")
                     await asyncio.to_thread(shutil.copy2, safety_backup, self.db_file)
-                    raise Exception("Verifikasi database gagal setelah restore")
+                    raise Exception("Verifikasi database gagal setelah restore. Database dikembalikan ke kondisi sebelumnya.")
 
                 # Nonaktifkan maintenance mode
                 self.bot.maintenance_mode = False

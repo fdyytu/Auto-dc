@@ -125,7 +125,7 @@ class BalanceManagerService(BaseLockHandler):
         
         async def notify_balance_updated(growid: str, old_balance: Balance, new_balance: Balance):
             """Callback untuk notifikasi update balance"""
-            self.logger.info(f"Balance updated for {growid}: {old_balance} -> {new_balance}")
+            self.logger.info(f"Balance updated for {growid}: {old_balance.format()} ({old_balance.total_wl()} WL) -> {new_balance.format()} ({new_balance.total_wl()} WL)")
         
         async def notify_user_registered(discord_id: str, growid: str):
             """Callback untuk notifikasi user registration"""

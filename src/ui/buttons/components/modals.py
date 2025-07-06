@@ -85,8 +85,16 @@ class QuantityModal(Modal):
                 raise ValueError(balance_response.error)
 
             balance = balance_response.data
-            if balance.total_wl() < total_price:
-                raise ValueError(MESSAGES.ERROR['INSUFFICIENT_BALANCE'])
+            user_balance_wl = balance.total_wl()
+            total_price_int = int(total_price)
+            
+            # Add detailed logging for debugging
+            self.logger.info(f"[QUANTITY_MODAL] Balance check for user {interaction.user.id}: Balance={user_balance_wl} WL, Required={total_price_int} WL")
+            self.logger.info(f"[QUANTITY_MODAL] Balance details: WL={balance.wl}, DL={balance.dl}, BGL={balance.bgl}")
+            
+            if user_balance_wl < total_price_int:
+                self.logger.warning(f"[QUANTITY_MODAL] Purchase failed for user {interaction.user.id}: ❌ Balance tidak cukup!")
+                raise ValueError(f"❌ Balance tidak cukup! Saldo Anda: {user_balance_wl:,.0f} WL, Dibutuhkan: {total_price_int:,.0f} WL")
 
             # Process purchase
             purchase_response = await trx_manager.process_purchase(
@@ -317,8 +325,16 @@ class BuyModal(Modal):
                 raise ValueError(balance_response.error)
 
             balance = balance_response.data
-            if balance.total_wl() < total_price:
-                raise ValueError(f"Saldo tidak mencukupi. Saldo Anda: {balance.total_wl():,.0f} WL, Dibutuhkan: {total_price:,.0f} WL")
+            user_balance_wl = balance.total_wl()
+            total_price_int = int(total_price)
+            
+            # Add detailed logging for debugging
+            self.logger.info(f"[BUY_MODAL] Balance check for user {interaction.user.id}: Balance={user_balance_wl} WL, Required={total_price_int} WL")
+            self.logger.info(f"[BUY_MODAL] Balance details: WL={balance.wl}, DL={balance.dl}, BGL={balance.bgl}")
+            
+            if user_balance_wl < total_price_int:
+                self.logger.warning(f"[BUY_MODAL] Purchase failed for user {interaction.user.id}: ❌ Balance tidak cukup!")
+                raise ValueError(f"❌ Balance tidak cukup! Saldo Anda: {user_balance_wl:,.0f} WL, Dibutuhkan: {total_price_int:,.0f} WL")
 
             # Process purchase
             purchase_response = await trx_manager.process_purchase(
