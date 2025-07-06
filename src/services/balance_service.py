@@ -104,9 +104,13 @@ class BalanceManagerService(BaseLockHandler):
 
     def normalize_balance(self, balance: Balance) -> Balance:
         """Normalisasi balance dengan mengkonversi WL ke DL dan DL ke BGL sesuai rate"""
+        original_total = balance.total_wl()
         wl = balance.wl
         dl = balance.dl
         bgl = balance.bgl
+
+        # Log original balance
+        self.logger.debug(f"[NORMALIZE] Original balance: WL={wl}, DL={dl}, BGL={bgl}, Total={original_total} WL")
 
         # Konversi WL ke DL
         if wl >= CURRENCY_RATES.RATES['DL']:
@@ -118,7 +122,17 @@ class BalanceManagerService(BaseLockHandler):
             bgl += dl // CURRENCY_RATES.RATES['BGL']
             dl = dl % CURRENCY_RATES.RATES['BGL']
 
-        return Balance(wl, dl, bgl)
+        normalized_balance = Balance(wl, dl, bgl)
+        normalized_total = normalized_balance.total_wl()
+        
+        # Log normalized balance
+        self.logger.debug(f"[NORMALIZE] Normalized balance: WL={wl}, DL={dl}, BGL={bgl}, Total={normalized_total} WL")
+        
+        # Verify total remains the same
+        if original_total != normalized_total:
+            self.logger.error(f"[NORMALIZE] Balance normalization error: Original={original_total} WL, Normalized={normalized_total} WL")
+        
+        return normalized_balance
 
     def setup_default_callbacks(self):
         """Setup default callbacks untuk notifikasi"""
@@ -439,7 +453,15 @@ class BalanceManagerService(BaseLockHandler):
                     result['balance_dl'],
                     result['balance_bgl']
                 )
+                
+                # Log raw balance from database
+                self.logger.info(f"[GET_BALANCE] Raw balance from DB for {growid}: WL={balance.wl}, DL={balance.dl}, BGL={balance.bgl}, Total={balance.total_wl()} WL")
+                
                 normalized_balance = self.normalize_balance(balance)
+                
+                # Log normalized balance
+                self.logger.info(f"[GET_BALANCE] Normalized balance for {growid}: WL={normalized_balance.wl}, DL={normalized_balance.dl}, BGL={normalized_balance.bgl}, Total={normalized_balance.total_wl()} WL")
+                
                 await self.cache_manager.set(
                     cache_key, 
                     normalized_balance,

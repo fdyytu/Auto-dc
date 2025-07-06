@@ -91,9 +91,12 @@ class QuantityModal(Modal):
             # Add detailed logging for debugging
             self.logger.info(f"[QUANTITY_MODAL] Balance check for user {interaction.user.id}: Balance={user_balance_wl} WL, Required={total_price_int} WL")
             self.logger.info(f"[QUANTITY_MODAL] Balance details: WL={balance.wl}, DL={balance.dl}, BGL={balance.bgl}")
+            self.logger.info(f"[QUANTITY_MODAL] Balance total_wl calculation: {balance.wl} + ({balance.dl} * 100) + ({balance.bgl} * 10000) = {user_balance_wl}")
             
-            if user_balance_wl < total_price_int:
+            # Use can_afford method for more reliable balance checking
+            if not balance.can_afford(total_price_int):
                 self.logger.warning(f"[QUANTITY_MODAL] Purchase failed for user {interaction.user.id}: ❌ Balance tidak cukup!")
+                self.logger.warning(f"[QUANTITY_MODAL] Balance verification failed: Available={user_balance_wl} WL, Required={total_price_int} WL")
                 raise ValueError(f"❌ Balance tidak cukup! Saldo Anda: {user_balance_wl:,.0f} WL, Dibutuhkan: {total_price_int:,.0f} WL")
 
             # Process purchase
@@ -331,9 +334,12 @@ class BuyModal(Modal):
             # Add detailed logging for debugging
             self.logger.info(f"[BUY_MODAL] Balance check for user {interaction.user.id}: Balance={user_balance_wl} WL, Required={total_price_int} WL")
             self.logger.info(f"[BUY_MODAL] Balance details: WL={balance.wl}, DL={balance.dl}, BGL={balance.bgl}")
+            self.logger.info(f"[BUY_MODAL] Balance total_wl calculation: {balance.wl} + ({balance.dl} * 100) + ({balance.bgl} * 10000) = {user_balance_wl}")
             
-            if user_balance_wl < total_price_int:
+            # Use can_afford method for more reliable balance checking
+            if not balance.can_afford(total_price_int):
                 self.logger.warning(f"[BUY_MODAL] Purchase failed for user {interaction.user.id}: ❌ Balance tidak cukup!")
+                self.logger.warning(f"[BUY_MODAL] Balance verification failed: Available={user_balance_wl} WL, Required={total_price_int} WL")
                 raise ValueError(f"❌ Balance tidak cukup! Saldo Anda: {user_balance_wl:,.0f} WL, Dibutuhkan: {total_price_int:,.0f} WL")
 
             # Process purchase
