@@ -468,7 +468,8 @@ class BalanceManagerService(BaseLockHandler):
         dl: int = 0, 
         bgl: int = 0,
         details: str = "", 
-        transaction_type: TransactionType = TransactionType.DEPOSIT
+        transaction_type: TransactionType = TransactionType.DEPOSIT,
+        bypass_validation: bool = False
     ) -> BalanceResponse:
         """Update balance with proper locking and validation"""
         lock = await self.acquire_lock(f"balance_update_{growid}")
@@ -495,13 +496,22 @@ class BalanceManagerService(BaseLockHandler):
             if not normalized_new_balance.validate():
                 return BalanceResponse.error(MESSAGES.ERROR['INVALID_AMOUNT'])
 
-            # Validate withdrawals
-            if wl < 0 and abs(wl) > current_balance.wl:
-                return BalanceResponse.error(MESSAGES.ERROR['INSUFFICIENT_BALANCE'])
-            if dl < 0 and abs(dl) > current_balance.dl:
-                return BalanceResponse.error(MESSAGES.ERROR['INSUFFICIENT_BALANCE'])
-            if bgl < 0 and abs(bgl) > current_balance.bgl:
-                return BalanceResponse.error(MESSAGES.ERROR['INSUFFICIENT_BALANCE'])
+            # Validate withdrawals (skip for admin operations)
+            if not bypass_validation:
+                if wl < 0 and abs(wl) > current_balance.wl:
+                    return BalanceResponse.error(MESSAGES.ERROR['INSUFFICIENT_BALANCE'])
+                if dl < 0 and abs(dl) > current_balance.dl:
+                    return BalanceResponse.error(MESSAGES.ERROR['INSUFFICIENT_BALANCE'])
+                if bgl < 0 and abs(bgl) > current_balance.bgl:
+                    return BalanceResponse.error(MESSAGES.ERROR['INSUFFICIENT_BALANCE'])
+            
+            # For admin operations, allow negative balances to be set to 0
+            if bypass_validation:
+                new_wl = max(0, current_balance.wl + wl)
+                new_dl = max(0, current_balance.dl + dl)
+                new_bgl = max(0, current_balance.bgl + bgl)
+                new_balance = Balance(new_wl, new_dl, new_bgl)
+                normalized_new_balance = self.normalize_balance(new_balance)
 
             conn = get_connection()
             cursor = conn.cursor()

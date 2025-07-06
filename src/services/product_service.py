@@ -507,6 +507,77 @@ class ProductService(BaseService):
         except Exception as e:
             return self._handle_exception(e, "mengambil history stock")
 
+    async def reduce_stock(self, code: str, amount: int, admin_id: str) -> ServiceResponse:
+        """Kurangi stock produk"""
+        try:
+            # Validasi input
+            if not code or not code.strip():
+                return ServiceResponse.error_response(
+                    error="Code product tidak boleh kosong",
+                    message="Code product harus diisi"
+                )
+            
+            if amount <= 0:
+                return ServiceResponse.error_response(
+                    error="Jumlah tidak valid",
+                    message="Jumlah yang dikurangi harus lebih dari 0"
+                )
+            
+            # Cek apakah product ada
+            product_response = await self.get_product(code.upper())
+            if not product_response.success:
+                return ServiceResponse.error_response(
+                    error="Product tidak ditemukan",
+                    message=f"Product dengan code {code.upper()} tidak ditemukan"
+                )
+            
+            # Ambil stock yang tersedia
+            available_stock_response = await self.get_available_stock(code.upper())
+            if not available_stock_response.success:
+                return ServiceResponse.error_response(
+                    error="Gagal mengambil stock",
+                    message="Gagal mengambil informasi stock produk"
+                )
+            
+            available_stocks = available_stock_response.data
+            if len(available_stocks) < amount:
+                return ServiceResponse.error_response(
+                    error="Stock tidak cukup",
+                    message=f"Stock tersedia: {len(available_stocks)}, diminta: {amount}"
+                )
+            
+            # Ambil stock yang akan dikurangi (FIFO - First In First Out)
+            stocks_to_reduce = available_stocks[:amount]
+            stock_ids = [stock['id'] for stock in stocks_to_reduce]
+            
+            # Update status stock menjadi 'deleted'
+            update_response = await self.update_stock_status(stock_ids, StockStatus.DELETED)
+            if not update_response.success:
+                return ServiceResponse.error_response(
+                    error="Gagal mengurangi stock",
+                    message="Gagal mengupdate status stock"
+                )
+            
+            # Hitung stock yang tersisa
+            remaining_stock = len(available_stocks) - amount
+            
+            # Log aktivitas
+            self.logger.info(f"Stock reduced for product {code.upper()}: {amount} items by admin {admin_id}")
+            
+            return ServiceResponse.success_response(
+                data={
+                    'product_code': code.upper(),
+                    'reduced_amount': amount,
+                    'remaining_stock': remaining_stock,
+                    'admin_id': admin_id,
+                    'reduced_stock_ids': stock_ids
+                },
+                message=f"Berhasil mengurangi {amount} stock untuk product {code.upper()}"
+            )
+            
+        except Exception as e:
+            return self._handle_exception(e, "mengurangi stock")
+
     async def get_product_with_stock_info(self, code: str) -> ServiceResponse:
         """Ambil product beserta informasi stock"""
         try:

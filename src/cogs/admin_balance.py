@@ -86,13 +86,14 @@ class AdminBalanceCog(AdminBaseCog):
             dl = -validated_amount if balance_type == "DL" else 0
             bgl = -validated_amount if balance_type == "BGL" else 0
             
-            # Update balance
+            # Update balance with bypass validation for admin operations
             response = await self.balance_service.update_balance(
                 growid=growid,
                 wl=wl,
                 dl=dl,
                 bgl=bgl,
-                transaction_type=TransactionType.ADMIN_REMOVE
+                transaction_type=TransactionType.ADMIN_REMOVE,
+                bypass_validation=True
             )
             
             if response.success:
