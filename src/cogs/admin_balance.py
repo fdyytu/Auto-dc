@@ -81,26 +81,62 @@ class AdminBalanceCog(AdminBaseCog):
                 await ctx.send(embed=message_formatter.error_embed("Tipe balance tidak valid (WL/DL/BGL)"))
                 return
             
-            # Tentukan parameter berdasarkan tipe balance (negatif untuk mengurangi)
-            wl = -validated_amount if balance_type == "WL" else 0
-            dl = -validated_amount if balance_type == "DL" else 0
-            bgl = -validated_amount if balance_type == "BGL" else 0
+            # Get current balance first
+            current_response = await self.balance_service.get_balance(growid)
+            if not current_response.success:
+                await ctx.send(embed=message_formatter.error_embed(f"Gagal mendapatkan balance: {current_response.error}"))
+                return
             
-            # Update balance with bypass validation for admin operations
+            current_balance = current_response.data
+            
+            # Convert amount to WL equivalent for calculation
+            if balance_type == "WL":
+                wl_equivalent = validated_amount
+            elif balance_type == "DL":
+                wl_equivalent = validated_amount * 100  # 1 DL = 100 WL
+            elif balance_type == "BGL":
+                wl_equivalent = validated_amount * 10000  # 1 BGL = 10000 WL
+            
+            # Check if user has enough balance
+            current_total_wl = current_balance.total_wl()
+            if current_total_wl < wl_equivalent:
+                await ctx.send(embed=message_formatter.error_embed(
+                    f"Balance tidak mencukupi!\n"
+                    f"Balance saat ini: {current_balance.format()}\n"
+                    f"Dibutuhkan: {validated_amount:,} {balance_type}"
+                ))
+                return
+            
+            # Calculate new total WL after reduction
+            new_total_wl = current_total_wl - wl_equivalent
+            
+            # Convert back to proper balance format
+            from src.config.constants.bot_constants import Balance
+            new_balance = Balance.from_wl(new_total_wl)
+            
+            # Calculate the difference to apply
+            wl_diff = new_balance.wl - current_balance.wl
+            dl_diff = new_balance.dl - current_balance.dl
+            bgl_diff = new_balance.bgl - current_balance.bgl
+            
+            # Update balance with the calculated differences
             response = await self.balance_service.update_balance(
                 growid=growid,
-                wl=wl,
-                dl=dl,
-                bgl=bgl,
+                wl=wl_diff,
+                dl=dl_diff,
+                bgl=bgl_diff,
                 transaction_type=TransactionType.ADMIN_REMOVE,
-                bypass_validation=True
+                bypass_validation=True,
+                details=f"Admin removed {validated_amount:,} {balance_type}"
             )
             
             if response.success:
                 embed = message_formatter.success_embed(
                     f"Balance berhasil dikurangi!\n"
                     f"User: {growid}\n"
-                    f"Dikurangi: {validated_amount:,} {balance_type}"
+                    f"Dikurangi: {validated_amount:,} {balance_type}\n"
+                    f"Balance sebelum: {current_balance.format()}\n"
+                    f"Balance sekarang: {response.data.format()}"
                 )
             else:
                 embed = message_formatter.error_embed(f"Gagal mengurangi balance: {response.error}")
