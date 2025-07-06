@@ -11,6 +11,7 @@ from src.cogs.admin_base import AdminBaseCog
 from src.services.balance_service import BalanceManagerService
 from src.utils.formatters import message_formatter
 from src.utils.validators import input_validator
+from src.config.constants.bot_constants import TransactionType
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,7 @@ class AdminBalanceCog(AdminBaseCog):
                 wl=wl,
                 dl=dl,
                 bgl=bgl,
-                transaction_type="admin_add"
+                transaction_type=TransactionType.ADMIN_ADD
             )
             
             if response.success:
@@ -91,7 +92,7 @@ class AdminBalanceCog(AdminBaseCog):
                 wl=wl,
                 dl=dl,
                 bgl=bgl,
-                transaction_type="admin_remove"
+                transaction_type=TransactionType.ADMIN_REMOVE
             )
             
             if response.success:
