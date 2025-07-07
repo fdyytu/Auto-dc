@@ -150,7 +150,44 @@ class Balance:
     def validate(self) -> bool:
         """Validasi balance"""
         total = self.total_wl()
-        return self.MIN_AMOUNT <= total <= self.MAX_AMOUNT
+        return (
+            self.MIN_AMOUNT <= total <= self.MAX_AMOUNT and
+            all(isinstance(x, int) and x >= 0 for x in [self.wl, self.dl, self.bgl])
+        )
+
+    def can_afford(self, cost: Union[int, 'Balance']) -> bool:
+        """Check if balance can afford the cost"""
+        if isinstance(cost, int):
+            return self.total_wl() >= cost
+        elif isinstance(cost, Balance):
+            return self.total_wl() >= cost.total_wl()
+        return False
+
+    def subtract(self, amount: Union[int, 'Balance']) -> 'Balance':
+        """Subtract amount from balance and return new balance"""
+        if isinstance(amount, int):
+            new_total = max(0, self.total_wl() - amount)
+        elif isinstance(amount, Balance):
+            new_total = max(0, self.total_wl() - amount.total_wl())
+        else:
+            return Balance(self.wl, self.dl, self.bgl)
+        
+        return Balance.from_wl(new_total)
+
+    def add(self, amount: Union[int, 'Balance']) -> 'Balance':
+        """Add amount to balance and return new balance"""
+        if isinstance(amount, int):
+            new_total = min(self.MAX_AMOUNT, self.total_wl() + amount)
+        elif isinstance(amount, Balance):
+            new_total = min(self.MAX_AMOUNT, self.total_wl() + amount.total_wl())
+        else:
+            return Balance(self.wl, self.dl, self.bgl)
+        
+        return Balance.from_wl(new_total)
+
+    def copy(self) -> 'Balance':
+        """Create a copy of this balance"""
+        return Balance(self.wl, self.dl, self.bgl)
 
 class EXTENSIONS:
     # Core services harus diload pertama dan berurutan
