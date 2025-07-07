@@ -217,9 +217,15 @@ class TransactionManager(BaseLockHandler):
             self.logger.info(f"[PURCHASE] Balance total_wl calculation: {current_balance.wl} + ({current_balance.dl} * 100) + ({current_balance.bgl} * 10000) = {current_balance.total_wl()}")
 
             # Use can_afford method for more reliable balance checking
-            if not current_balance.can_afford(total_price):
+            self.logger.info(f"[PURCHASE] About to check can_afford: total_price={total_price}, type={type(total_price)}")
+            can_afford_result = current_balance.can_afford(total_price)
+            self.logger.info(f"[PURCHASE] can_afford result: {can_afford_result}")
+            
+            if not can_afford_result:
                 self.logger.warning(f"[PURCHASE] Insufficient balance for {growid}: Required={total_price} WL, Available={current_balance.total_wl()} WL")
                 self.logger.warning(f"[PURCHASE] Balance verification failed using can_afford method")
+                self.logger.warning(f"[PURCHASE] Debug info: balance.wl={current_balance.wl}, balance.dl={current_balance.dl}, balance.bgl={current_balance.bgl}")
+                self.logger.warning(f"[PURCHASE] Debug info: total_price={total_price}, type(total_price)={type(total_price)}")
                 return TransactionResponse.error(f"❌ Balance tidak cukup! Saldo Anda: {current_balance.total_wl():,.0f} WL, Dibutuhkan: {total_price:,.0f} WL")
 
             # Update stock status via ProductManager

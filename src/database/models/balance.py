@@ -78,10 +78,12 @@ class Balance:
             all(isinstance(x, int) and x >= 0 for x in [self.wl, self.dl, self.bgl])
         )
 
-    def can_afford(self, cost: Union[int, 'Balance']) -> bool:
+    def can_afford(self, cost: Union[int, float, 'Balance']) -> bool:
         """Check if balance can afford the cost"""
-        if isinstance(cost, int):
-            return self.total_wl() >= cost
+        if isinstance(cost, (int, float)):
+            # Convert float to int for comparison (WL is always integer)
+            cost_int = int(cost)
+            return self.total_wl() >= cost_int
         elif isinstance(cost, Balance):
             return self.total_wl() >= cost.total_wl()
         return False
