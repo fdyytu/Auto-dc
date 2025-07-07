@@ -80,15 +80,19 @@ class Balance:
 
     def can_afford(self, cost: Union[int, float, 'Balance']) -> bool:
         """Check if balance can afford the cost"""
+        total_balance = self.total_wl()
+        
         if isinstance(cost, (int, float)):
-            # Convert float to int for comparison (WL is always integer)
+            # Convert to int for comparison (WL is always integer)
             cost_int = int(cost)
-            return self.total_wl() >= cost_int
+            return total_balance >= cost_int
         elif isinstance(cost, Balance):
-            return self.total_wl() >= cost.total_wl()
-        return False
+            cost_wl = cost.total_wl()
+            return total_balance >= cost_wl
+        else:
+            return False
 
-    def subtract(self, amount: Union[int, 'Balance']) -> 'Balance':
+    def subtract(self, amount: Union[int, float, 'Balance']) -> 'Balance':
         """Subtract amount from balance and return new balance"""
         if isinstance(amount, int):
             new_total = max(0, self.total_wl() - amount)
@@ -99,7 +103,7 @@ class Balance:
         
         return Balance.from_wl(new_total)
 
-    def add(self, amount: Union[int, 'Balance']) -> 'Balance':
+    def add(self, amount: Union[int, float, 'Balance']) -> 'Balance':
         """Add amount to balance and return new balance"""
         if isinstance(amount, int):
             new_total = min(self.MAX_AMOUNT, self.total_wl() + amount)
