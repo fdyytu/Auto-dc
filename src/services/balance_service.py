@@ -102,8 +102,15 @@ class BalanceManagerService(BaseLockHandler):
             self.setup_default_callbacks()
             self.initialized = True
 
-    def normalize_balance(self, balance: Balance) -> Balance:
-        """Normalisasi balance dengan mengkonversi WL ke DL dan DL ke BGL sesuai rate"""
+    def normalize_balance(self, balance: Balance, auto_convert_to_bgl: bool = False) -> Balance:
+        """
+        Normalisasi balance dengan mengkonversi WL ke DL dan opsional DL ke BGL
+        
+        Args:
+            balance: Balance object to normalize
+            auto_convert_to_bgl: If True, auto-convert DL to BGL when >= 100 DL
+                                If False, only convert WL to DL (preserve DL display)
+        """
         original_total = balance.total_wl()
         wl = balance.wl
         dl = balance.dl
@@ -112,21 +119,26 @@ class BalanceManagerService(BaseLockHandler):
         # Log original balance
         self.logger.debug(f"[NORMALIZE] Original balance: WL={wl}, DL={dl}, BGL={bgl}, Total={original_total} WL")
 
-        # Konversi WL ke DL
+        # Always convert WL ke DL (this is expected behavior)
         if wl >= CURRENCY_RATES.RATES['DL']:
             dl += wl // CURRENCY_RATES.RATES['DL']
             wl = wl % CURRENCY_RATES.RATES['DL']
 
-        # Konversi DL ke BGL
-        if dl >= CURRENCY_RATES.RATES['BGL']:
-            bgl += dl // CURRENCY_RATES.RATES['BGL']
-            dl = dl % CURRENCY_RATES.RATES['BGL']
+        # Only convert DL ke BGL if explicitly requested or if DL amount is very large (>= 10000 DL)
+        # This preserves user's DL display for normal amounts like 1000 DL
+        if auto_convert_to_bgl and dl >= CURRENCY_RATES.RATES['BGL'] // CURRENCY_RATES.RATES['DL']:
+            bgl += dl // (CURRENCY_RATES.RATES['BGL'] // CURRENCY_RATES.RATES['DL'])
+            dl = dl % (CURRENCY_RATES.RATES['BGL'] // CURRENCY_RATES.RATES['DL'])
+        elif dl >= 10000:  # Only auto-convert to BGL for very large amounts (10000+ DL)
+            bgl += dl // (CURRENCY_RATES.RATES['BGL'] // CURRENCY_RATES.RATES['DL'])
+            dl = dl % (CURRENCY_RATES.RATES['BGL'] // CURRENCY_RATES.RATES['DL'])
 
         normalized_balance = Balance(wl, dl, bgl)
         normalized_total = normalized_balance.total_wl()
         
         # Log normalized balance
         self.logger.debug(f"[NORMALIZE] Normalized balance: WL={wl}, DL={dl}, BGL={bgl}, Total={normalized_total} WL")
+        self.logger.debug(f"[NORMALIZE] Auto-convert to BGL: {auto_convert_to_bgl}, DL threshold check: {dl >= 10000}")
         
         # Verify total remains the same
         if original_total != normalized_total:
@@ -426,7 +438,8 @@ class BalanceManagerService(BaseLockHandler):
                 balance = Balance(cached['wl'], cached['dl'], cached['bgl'])
             else:
                 balance = cached
-            normalized_balance = self.normalize_balance(balance)
+            # Don't auto-convert DL to BGL for display purposes - preserve user's DL balance
+            normalized_balance = self.normalize_balance(balance, auto_convert_to_bgl=False)
             return BalanceResponse.success(normalized_balance)
 
         lock = await self.acquire_lock(cache_key)
@@ -457,7 +470,8 @@ class BalanceManagerService(BaseLockHandler):
                 # Log raw balance from database
                 self.logger.info(f"[GET_BALANCE] Raw balance from DB for {growid}: WL={balance.wl}, DL={balance.dl}, BGL={balance.bgl}, Total={balance.total_wl()} WL")
                 
-                normalized_balance = self.normalize_balance(balance)
+                # Don't auto-convert DL to BGL for display purposes - preserve user's DL balance
+                normalized_balance = self.normalize_balance(balance, auto_convert_to_bgl=False)
                 
                 # Log normalized balance
                 self.logger.info(f"[GET_BALANCE] Normalized balance for {growid}: WL={normalized_balance.wl}, DL={normalized_balance.dl}, BGL={normalized_balance.bgl}, Total={normalized_balance.total_wl()} WL")
@@ -513,7 +527,8 @@ class BalanceManagerService(BaseLockHandler):
             new_bgl = max(0, current_balance.bgl + bgl)
             
             new_balance = Balance(new_wl, new_dl, new_bgl)
-            normalized_new_balance = self.normalize_balance(new_balance)
+            # For balance updates, allow WL->DL conversion but preserve DL display
+            normalized_new_balance = self.normalize_balance(new_balance, auto_convert_to_bgl=False)
             
             if not normalized_new_balance.validate():
                 return BalanceResponse.error(MESSAGES.ERROR['INVALID_AMOUNT'])
@@ -533,10 +548,12 @@ class BalanceManagerService(BaseLockHandler):
                 new_dl = max(0, current_balance.dl + dl)
                 new_bgl = max(0, current_balance.bgl + bgl)
                 new_balance = Balance(new_wl, new_dl, new_bgl)
-                normalized_new_balance = self.normalize_balance(new_balance)
+                # For admin operations, preserve DL display unless explicitly converting to BGL
+                normalized_new_balance = self.normalize_balance(new_balance, auto_convert_to_bgl=False)
             
             # Always normalize the final balance to ensure proper currency conversion
-            normalized_new_balance = self.normalize_balance(normalized_new_balance)
+            # Preserve DL display for user experience
+            normalized_new_balance = self.normalize_balance(normalized_new_balance, auto_convert_to_bgl=False)
 
             conn = get_connection()
             cursor = conn.cursor()
