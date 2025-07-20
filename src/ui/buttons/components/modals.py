@@ -336,13 +336,20 @@ class BuyModal(Modal):
             self.logger.info(f"[BUY_MODAL] Balance details: WL={balance.wl}, DL={balance.dl}, BGL={balance.bgl}")
             self.logger.info(f"[BUY_MODAL] Balance total_wl calculation: {balance.wl} + ({balance.dl} * 100) + ({balance.bgl} * 10000) = {user_balance_wl}")
             
+            # Log balance verification details for debugging
+            self.logger.info(f"[BUY_MODAL] Pre-purchase balance verification:")
+            self.logger.info(f"[BUY_MODAL] User balance: {user_balance_wl} WL")
+            self.logger.info(f"[BUY_MODAL] Required: {total_price_int} WL")
+            self.logger.info(f"[BUY_MODAL] Can afford check: {balance.can_afford(total_price_int)}")
+            
             # Use can_afford method for more reliable balance checking
             if not balance.can_afford(total_price_int):
                 self.logger.warning(f"[BUY_MODAL] Purchase failed for user {interaction.user.id}: ❌ Balance tidak cukup!")
                 self.logger.warning(f"[BUY_MODAL] Balance verification failed: Available={user_balance_wl} WL, Required={total_price_int} WL")
                 raise ValueError(f"❌ Balance tidak cukup! Saldo Anda: {user_balance_wl:,.0f} WL, Dibutuhkan: {total_price_int:,.0f} WL")
 
-            # Process purchase
+            # Process purchase - let TransactionManager handle the final balance verification
+            self.logger.info(f"[BUY_MODAL] Proceeding to TransactionManager.process_purchase")
             purchase_response = await trx_manager.process_purchase(
                 buyer_id=str(interaction.user.id),
                 product_code=product_code,
@@ -350,6 +357,7 @@ class BuyModal(Modal):
             )
 
             if not purchase_response.success:
+                self.logger.error(f"[BUY_MODAL] TransactionManager.process_purchase failed: {purchase_response.error}")
                 raise ValueError(purchase_response.error)
 
             # Get purchased items content

@@ -202,8 +202,9 @@ class TransactionManager(BaseLockHandler):
                 return TransactionResponse.error(stock_response.error)
             available_stock = stock_response.data
 
-            # Calculate total price
-            total_price = product['price'] * quantity
+            # Calculate total price and ensure it's an integer for WL calculations
+            total_price_float = product['price'] * quantity
+            total_price = int(total_price_float)  # Convert to integer for WL calculations
 
             # Get and verify balance
             balance_response = await self.balance_manager.get_balance(growid)
@@ -215,11 +216,29 @@ class TransactionManager(BaseLockHandler):
             self.logger.info(f"[PURCHASE] Balance verification for {growid}: Balance={current_balance.total_wl()} WL, Required={total_price} WL")
             self.logger.info(f"[PURCHASE] Balance details: WL={current_balance.wl}, DL={current_balance.dl}, BGL={current_balance.bgl}")
             self.logger.info(f"[PURCHASE] Balance total_wl calculation: {current_balance.wl} + ({current_balance.dl} * 100) + ({current_balance.bgl} * 10000) = {current_balance.total_wl()}")
+            self.logger.info(f"[PURCHASE] Price calculation: product_price={product['price']} * quantity={quantity} = {total_price_float} -> {total_price} WL")
+            self.logger.info(f"[PURCHASE] Can afford check: current_balance.can_afford({total_price}) = {current_balance.can_afford(total_price)}")
 
             # Use can_afford method for more reliable balance checking
-            if not current_balance.can_afford(total_price):
-                self.logger.warning(f"[PURCHASE] Insufficient balance for {growid}: Required={total_price} WL, Available={current_balance.total_wl()} WL")
-                self.logger.warning(f"[PURCHASE] Balance verification failed using can_afford method")
+            can_afford_result = current_balance.can_afford(total_price)
+            if not can_afford_result:
+                self.logger.error(f"[PURCHASE] CRITICAL: Balance check failed!")
+                self.logger.error(f"[PURCHASE] User: {growid} (ID: {buyer_id})")
+                self.logger.error(f"[PURCHASE] Balance object: {current_balance}")
+                self.logger.error(f"[PURCHASE] Balance WL: {current_balance.wl}, DL: {current_balance.dl}, BGL: {current_balance.bgl}")
+                self.logger.error(f"[PURCHASE] Total WL: {current_balance.total_wl()}")
+                self.logger.error(f"[PURCHASE] Required: {total_price} (type: {type(total_price)})")
+                self.logger.error(f"[PURCHASE] Can afford result: {can_afford_result}")
+                self.logger.error(f"[PURCHASE] Manual check: {current_balance.total_wl()} >= {total_price} = {current_balance.total_wl() >= total_price}")
+                
+                # Try to get fresh balance data to double-check
+                fresh_balance_response = await self.balance_manager.get_balance(growid)
+                if fresh_balance_response.success:
+                    fresh_balance = fresh_balance_response.data
+                    self.logger.error(f"[PURCHASE] Fresh balance check: WL={fresh_balance.wl}, DL={fresh_balance.dl}, BGL={fresh_balance.bgl}")
+                    self.logger.error(f"[PURCHASE] Fresh total WL: {fresh_balance.total_wl()}")
+                    self.logger.error(f"[PURCHASE] Fresh can afford: {fresh_balance.can_afford(total_price)}")
+                
                 return TransactionResponse.error(f"❌ Balance tidak cukup! Saldo Anda: {current_balance.total_wl():,.0f} WL, Dibutuhkan: {total_price:,.0f} WL")
 
             # Update stock status via ProductManager
