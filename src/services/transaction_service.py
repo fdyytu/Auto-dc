@@ -231,15 +231,39 @@ class TransactionManager(BaseLockHandler):
                 self.logger.error(f"[PURCHASE] Can afford result: {can_afford_result}")
                 self.logger.error(f"[PURCHASE] Manual check: {current_balance.total_wl()} >= {total_price} = {current_balance.total_wl() >= total_price}")
                 
-                # Try to get fresh balance data to double-check
+                # Clear cache and get fresh balance data to double-check
+                cache_key = f"balance_{growid}"
+                await self.cache_manager.delete(cache_key)
+                self.logger.info(f"[PURCHASE] Cleared balance cache for {growid}")
+                
                 fresh_balance_response = await self.balance_manager.get_balance(growid)
                 if fresh_balance_response.success:
                     fresh_balance = fresh_balance_response.data
                     self.logger.error(f"[PURCHASE] Fresh balance check: WL={fresh_balance.wl}, DL={fresh_balance.dl}, BGL={fresh_balance.bgl}")
                     self.logger.error(f"[PURCHASE] Fresh total WL: {fresh_balance.total_wl()}")
-                    self.logger.error(f"[PURCHASE] Fresh can afford: {fresh_balance.can_afford(total_price)}")
+                    fresh_can_afford = fresh_balance.can_afford(total_price)
+                    self.logger.error(f"[PURCHASE] Fresh can afford: {fresh_can_afford}")
+                    
+                    # If fresh balance check passes, use the fresh balance and continue
+                    if fresh_can_afford:
+                        self.logger.warning(f"[PURCHASE] Fresh balance check passed! Using fresh balance data.")
+                        current_balance = fresh_balance
+                        can_afford_result = True
+                    else:
+                        # Double-check with manual calculation
+                        manual_total = fresh_balance.wl + (fresh_balance.dl * 100) + (fresh_balance.bgl * 10000)
+                        manual_can_afford = manual_total >= total_price
+                        self.logger.error(f"[PURCHASE] Manual calculation: {fresh_balance.wl} + ({fresh_balance.dl} * 100) + ({fresh_balance.bgl} * 10000) = {manual_total}")
+                        self.logger.error(f"[PURCHASE] Manual can afford: {manual_total} >= {total_price} = {manual_can_afford}")
+                        
+                        if manual_can_afford:
+                            self.logger.warning(f"[PURCHASE] Manual calculation passed! Proceeding with transaction.")
+                            current_balance = fresh_balance
+                            can_afford_result = True
                 
-                return TransactionResponse.error(f"❌ Balance tidak cukup! Saldo Anda: {current_balance.total_wl():,.0f} WL, Dibutuhkan: {total_price:,.0f} WL")
+                # If still can't afford after fresh check, return error
+                if not can_afford_result:
+                    return TransactionResponse.error(f"❌ Balance tidak cukup! Saldo Anda: {current_balance.total_wl():,.0f} WL, Dibutuhkan: {total_price:,.0f} WL")
 
             # Update stock status via ProductManager
             stock_update_response = await self.product_manager.update_stock_status(
