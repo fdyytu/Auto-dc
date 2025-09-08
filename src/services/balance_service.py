@@ -162,7 +162,7 @@ class BalanceManagerService(BaseLockHandler):
         self.callback_manager.register('user_registered', notify_user_registered)
 
     async def verify_dependencies(self) -> bool:
-        """Verify all required dependencies are available"""
+        """Verify all required dependencies are available""" 
         try:
             # Verifikasi koneksi database
             conn = None
@@ -195,9 +195,8 @@ class BalanceManagerService(BaseLockHandler):
             self.logger.error(f"Error during cleanup: {e}")
 
 
-
     async def get_growid(self, discord_id: str) -> BalanceResponse:
-        """Get GrowID for Discord user with proper locking and caching"""
+        """Get GrowID for Discord user with proper locking and caching""" 
         cache_key = f"growid_{discord_id}"
         cached = await self.cache_manager.get(cache_key)
         if cached:
@@ -237,7 +236,7 @@ class BalanceManagerService(BaseLockHandler):
             self.release_lock(cache_key)
 
     async def register_user(self, discord_id: str, growid: str) -> BalanceResponse:
-        """Register user with proper locking"""
+        """Register user with proper locking""" 
         if not growid or len(growid) < 3:
             return BalanceResponse.error(MESSAGES.ERROR['INVALID_GROWID'])
             
@@ -258,7 +257,7 @@ class BalanceManagerService(BaseLockHandler):
             existing = cursor.fetchone()
             if existing and existing['growid'] != growid:
                 return BalanceResponse.error(MESSAGES.ERROR['GROWID_EXISTS'])
-            
+                
             conn.execute("BEGIN TRANSACTION")
             
             cursor.execute(
@@ -312,7 +311,7 @@ class BalanceManagerService(BaseLockHandler):
             self.release_lock(f"register_{discord_id}")
 
     async def update_growid(self, discord_id: str, new_growid: str) -> BalanceResponse:
-        """Update GrowID for existing user"""
+        """Update GrowID for existing user""" 
         if not new_growid or len(new_growid) < 3:
             return BalanceResponse.error(MESSAGES.ERROR['INVALID_GROWID'])
             
@@ -430,7 +429,7 @@ class BalanceManagerService(BaseLockHandler):
             self.release_lock(f"update_growid_{discord_id}")
 
     async def get_balance(self, growid: str) -> BalanceResponse:
-        """Get user balance with proper locking and caching"""
+        """Get user balance with proper locking and caching""" 
         cache_key = f"balance_{growid}"
         cached = await self.cache_manager.get(cache_key)
         if cached:
@@ -507,7 +506,7 @@ class BalanceManagerService(BaseLockHandler):
         transaction_type: TransactionType = TransactionType.DEPOSIT,
         bypass_validation: bool = False
     ) -> BalanceResponse:
-        """Update balance with proper locking and validation"""
+        """Update balance with proper locking and validation""" 
         lock = await self.acquire_lock(f"balance_update_{growid}")
         if not lock:
             return BalanceResponse.error(MESSAGES.ERROR['LOCK_ACQUISITION_FAILED'])
@@ -520,13 +519,14 @@ class BalanceManagerService(BaseLockHandler):
                 return balance_response
             
             current_balance = balance_response.data
-            
-            # Calculate new balance
+
+            # Calculate new balance (raw sums)
             new_wl = max(0, current_balance.wl + wl)
             new_dl = max(0, current_balance.dl + dl)
             new_bgl = max(0, current_balance.bgl + bgl)
             
             new_balance = Balance(new_wl, new_dl, new_bgl)
+
             # For balance updates, allow WL->DL conversion but preserve DL display
             normalized_new_balance = self.normalize_balance(new_balance, auto_convert_to_bgl=False)
             
@@ -535,11 +535,25 @@ class BalanceManagerService(BaseLockHandler):
 
             # Validate withdrawals (skip for admin operations)
             if not bypass_validation:
-                if wl < 0 and abs(wl) > current_balance.wl:
-                    return BalanceResponse.error(MESSAGES.ERROR['INSUFFICIENT_BALANCE'])
-                if dl < 0 and abs(dl) > current_balance.dl:
-                    return BalanceResponse.error(MESSAGES.ERROR['INSUFFICIENT_BALANCE'])
-                if bgl < 0 and abs(bgl) > current_balance.bgl:
+                # Hitung total WL yang diminta untuk ditarik dari kombinasi perubahan negatif
+                requested_spend_wl = 0
+                if wl < 0:
+                    requested_spend_wl += abs(wl)
+                if dl < 0:
+                    requested_spend_wl += abs(dl) * CURRENCY_RATES.RATES['DL']
+                if bgl < 0:
+                    requested_spend_wl += abs(bgl) * CURRENCY_RATES.RATES['BGL']
+
+                self.logger.debug(
+                    f"[UPDATE_BALANCE] Validation: growid={growid}, "
+                    f"current_total_wl={current_balance.total_wl()}, requested_spend_wl={requested_spend_wl}"
+                )
+
+                if requested_spend_wl > current_balance.total_wl():
+                    self.logger.warning(
+                        f"[UPDATE_BALANCE] Insufficient balance for {growid}: "
+                        f"required={requested_spend_wl} WL, available={current_balance.total_wl()} WL"
+                    )
                     return BalanceResponse.error(MESSAGES.ERROR['INSUFFICIENT_BALANCE'])
             
             # For admin operations, allow negative balances to be set to 0
@@ -637,7 +651,7 @@ class BalanceManagerService(BaseLockHandler):
             self.release_lock(f"balance_update_{growid}")
 
     async def get_transaction_history(self, growid: str, limit: int = 10) -> BalanceResponse:
-        """Get transaction history with caching"""
+        """Get transaction history with caching""" 
         cache_key = f"trx_history_{growid}"
         cached = await self.cache_manager.get(cache_key)
         if cached:
@@ -689,14 +703,14 @@ class BalanceManagerCog(commands.Cog):
         self.logger.info("BalanceManagerCog unloaded")
 
     async def setup_notifications(self):
-        """Setup additional notification callbacks"""
+        """Setup additional notification callbacks""" 
         async def notify_low_balance(growid: str, balance: Balance):
-            """Notify when balance is low"""
+            """Notify when balance is low""" 
             if balance.total_wl() < 1000:  # Example threshold
                 self.logger.warning(f"Low balance alert for {growid}: {balance}")
         
         async def notify_large_transaction(growid: str, old_balance: Balance, new_balance: Balance):
-            """Notify for large transactions"""
+            """Notify for large transactions""" 
             diff = abs(new_balance.total_wl() - old_balance.total_wl())
             if diff > 100000:  # Example threshold: 100K WLS
                 self.logger.warning(f"Large transaction alert for {growid}: {old_balance} -> {new_balance} (diff: {diff:,} WLS)")
